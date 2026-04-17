@@ -8,10 +8,31 @@ import { ClipboardList, LayoutDashboard, Settings, Menu, X } from 'lucide-react'
 export default function App() {
   const [activeTab, setActiveTab] = useState<'form' | 'admin' | 'settings'>('form');
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
+  
+  // --- 🔒 管理員權限控制邏輯 ---
+  const [isAdmin, setIsAdmin] = useState(false);
+
+  useEffect(() => {
+    // 1. 檢查網址是否有暗號 ?admin=888
+    const params = new URLSearchParams(window.location.search);
+    const hasSecret = params.get('admin') === '888';
+
+    // 2. 檢查這台設備是否曾經解鎖過 (localStorage)
+    const wasAdmin = localStorage.getItem('dachuan_admin_access') === 'true';
+
+    if (hasSecret || wasAdmin) {
+      setIsAdmin(true);
+      // 記憶這台設備的權限
+      localStorage.setItem('dachuan_admin_access', 'true');
+    }
+  }, []);
+  // --------------------------
+
   const [orders, setOrders] = useState<Order[]>(() => {
     const saved = localStorage.getItem('clothing_orders');
     return saved ? JSON.parse(saved) : [];
   });
+  
   const [settings, setSettings] = useState<AppSettings>(() => {
     const saved = localStorage.getItem('clothing_settings');
     if (saved) {
@@ -82,7 +103,7 @@ export default function App() {
         />
       )}
 
-      {/* Sidebar - Same navy color as requested */}
+      {/* Sidebar */}
       <aside className={`fixed inset-y-0 left-0 z-40 w-[240px] bg-[#172554] text-white p-6 flex flex-col gap-8 flex-shrink-0 transform transition-transform duration-300 ease-in-out md:relative md:translate-x-0 ${
         isSidebarOpen ? 'translate-x-0 bottom-0 top-[60px]' : '-translate-x-full md:top-0'
       }`}>
@@ -90,6 +111,7 @@ export default function App() {
           <ShirtIcon className="w-6 h-6 mr-2" />
           大船團服訂購
         </div>
+        
         <nav className="flex flex-col gap-3">
           <button
             onClick={() => { setActiveTab('form'); closeSidebar(); }}
@@ -100,27 +122,34 @@ export default function App() {
             <ClipboardList className="w-4 h-4 mr-3 shrink-0" />
             填寫訂購單
           </button>
-          <button
-            onClick={() => { setActiveTab('admin'); closeSidebar(); }}
-            className={`flex items-center px-4 py-3 rounded-lg text-[14px] transition-colors text-left ${
-              activeTab === 'admin' ? 'bg-[#3b82f6]' : 'hover:bg-white/10'
-            }`}
-          >
-            <LayoutDashboard className="w-4 h-4 mr-3 shrink-0" />
-            後台管理
-          </button>
-          <button
-            onClick={() => { setActiveTab('settings'); closeSidebar(); }}
-            className={`flex items-center px-4 py-3 rounded-lg text-[14px] transition-colors text-left ${
-              activeTab === 'settings' ? 'bg-[#3b82f6]' : 'hover:bg-white/10'
-            }`}
-          >
-            <Settings className="w-4 h-4 mr-3 shrink-0" />
-            系統設定
-          </button>
+
+          {/* 🔒 只有管理員看得到的按鈕 */}
+          {isAdmin && (
+            <>
+              <button
+                onClick={() => { setActiveTab('admin'); closeSidebar(); }}
+                className={`flex items-center px-4 py-3 rounded-lg text-[14px] transition-colors text-left ${
+                  activeTab === 'admin' ? 'bg-[#3b82f6]' : 'hover:bg-white/10'
+                }`}
+              >
+                <LayoutDashboard className="w-4 h-4 mr-3 shrink-0" />
+                後台管理
+              </button>
+              <button
+                onClick={() => { setActiveTab('settings'); closeSidebar(); }}
+                className={`flex items-center px-4 py-3 rounded-lg text-[14px] transition-colors text-left ${
+                  activeTab === 'settings' ? 'bg-[#3b82f6]' : 'hover:bg-white/10'
+                }`}
+              >
+                <Settings className="w-4 h-4 mr-3 shrink-0" />
+                系統設定
+              </button>
+            </>
+          )}
         </nav>
         
-        {activeTab === 'admin' && orders.length > 0 && (
+        {/* 清空按鈕也同樣保護起來 */}
+        {isAdmin && activeTab === 'admin' && orders.length > 0 && (
           <div className="mt-auto md:mt-auto pt-8">
             <button 
               onClick={handleClearData}
@@ -140,7 +169,8 @@ export default function App() {
           </div>
         )}
         
-        {activeTab === 'admin' && (
+        {/* 只有管理員權限才能看到內容，即便有人透過 F12 切換 activeTab 也會看到空白 */}
+        {isAdmin && activeTab === 'admin' && (
           <div className="flex-1 flex flex-col transition-all animate-in fade-in slide-in-from-bottom-4">
             <div className="mb-6 flex flex-col sm:flex-row justify-between sm:items-center gap-4">
               <div>
@@ -155,7 +185,7 @@ export default function App() {
           </div>
         )}
 
-        {activeTab === 'settings' && (
+        {isAdmin && activeTab === 'settings' && (
           <div className="max-w-3xl mx-auto w-full transition-all animate-in fade-in slide-in-from-bottom-4">
             <SettingsPanel settings={settings} onSettingsChange={setSettings} />
           </div>
