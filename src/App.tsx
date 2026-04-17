@@ -1,44 +1,27 @@
 import React, { useState, useEffect } from 'react';
+import { createClient } from '@supabase/supabase-js';
 import OrderForm from './components/OrderForm';
 import AdminDashboard from './components/AdminDashboard';
 import SettingsPanel from './components/SettingsPanel';
 import { AppSettings, DEFAULT_SETTINGS, Order } from './types';
 import { ClipboardList, LayoutDashboard, Settings, Menu, X } from 'lucide-react';
 
+// --- ☁️ Supabase 雲端初始化 ---
+// 請確保你的 .env 檔案中有 VITE_SUPABASE_URL 與 VITE_SUPABASE_ANON_KEY
+const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
+const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
+const supabase = createClient(supabaseUrl, supabaseAnonKey);
+
 export default function App() {
   const [activeTab, setActiveTab] = useState<'form' | 'admin' | 'settings'>('form');
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
-  
-  // --- 🔒 管理員權限控制邏輯 ---
   const [isAdmin, setIsAdmin] = useState(false);
-
-  useEffect(() => {
-    // 1. 檢查網址是否有暗號 ?admin=888
-    const params = new URLSearchParams(window.location.search);
-    const hasSecret = params.get('admin') === '888';
-
-    // 2. 檢查這台設備是否曾經解鎖過 (localStorage)
-    const wasAdmin = localStorage.getItem('dachuan_admin_access') === 'true';
-
-    if (hasSecret || wasAdmin) {
-      setIsAdmin(true);
-      // 記憶這台設備的權限
-      localStorage.setItem('dachuan_admin_access', 'true');
-    }
-  }, []);
-  // --------------------------
-
-  const [orders, setOrders] = useState<Order[]>(() => {
-    const saved = localStorage.getItem('clothing_orders');
-    return saved ? JSON.parse(saved) : [];
-  });
-  
+  const [orders, setOrders] = useState<Order[]>([]);
   const [settings, setSettings] = useState<AppSettings>(() => {
     const saved = localStorage.getItem('clothing_settings');
     if (saved) {
       try {
-        const parsed = JSON.parse(saved);
-        return { ...DEFAULT_SETTINGS, ...parsed };
+        return { ...DEFAULT_SETTINGS, ...JSON.parse(saved) };
       } catch (e) {
         return DEFAULT_SETTINGS;
       }
@@ -46,39 +29,98 @@ export default function App() {
     return DEFAULT_SETTINGS;
   });
 
-  // Save to localStorage whenever orders change
+  // 1. 🔒 管理員權限檢查 (透過網址暗號 ?admin=888)
   useEffect(() => {
-    localStorage.setItem('clothing_orders', JSON.stringify(orders));
-  }, [orders]);
+    const params = new URLSearchParams(window.location.search);
+    if (params.get('admin') === '888' || localStorage.getItem('dachuan_admin_access') === 'true') {
+      setIsAdmin(true);
+      localStorage.setItem('dachuan_admin_access', 'true');
+    }
+  }, []);
 
-  // Save to localStorage whenever settings change
+  // 2. 📡 雲端資料同步與 Realtime 即時更新
+  useEffect(() => {
+    const fetchOrders = async () => {
+      const { data, error } = await supabase
+        .from('orders')
+        .select('*')
+        .order('createdAt', { ascending: false });
+      
+      if (!error && data) {
+        setOrders(data);
+      }
+    };
+
+    fetchOrders();
+
+    // 啟動 Realtime 監聽 - 當資料庫有任何變動，自動重新抓取
+    const channel = supabase
+      .channel('schema-db-changes')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'orders' }, () => {
+        fetchOrders();
+      })
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, []);
+
+  // 3. ⚙️ 設定存檔 (僅存在本機)
   useEffect(() => {
     localStorage.setItem('clothing_settings', JSON.stringify(settings));
   }, [settings]);
 
-  const handleAddOrder = (newOrder: Order) => {
-    setOrders([...orders, newOrder]);
-  };
+  // --- 📝 資料操作函數 ---
 
-  const handleClearData = () => {
-    if (confirm('確定要清空所有測試資料嗎？')) {
-      setOrders([]);
-      localStorage.removeItem('clothing_orders');
+  const handleAddOrder = async (newOrder: Order) => {
+    // 💡 重要：移除 local 產生的 id，讓 Supabase 自動產生資料庫 ID，避免 400 錯誤
+    const { id, ...orderDataWithoutId } = newOrder;
+
+    const { error } = await supabase
+      .from('orders')
+      .insert([orderDataWithoutId]);
+
+    if (error) {
+      alert('送出失敗，請檢查網路！');
+      console.error('Supabase Error:', error.message);
+    } else {
+      // 成功後不用手動 setOrders，Realtime 會幫我們更新
     }
   };
 
-  const handleDeleteOrder = (id: string) => {
-    if (confirm('確定要刪除這筆訂單嗎？此動作無法復原。')) {
-      setOrders(orders.filter(order => order.id !== id));
+  const handleDeleteOrder = async (id: string) => {
+    if (confirm('確定要刪除這筆訂單嗎？雲端資料也會消失。')) {
+      const { error } = await supabase
+        .from('orders')
+        .delete()
+        .eq('id', id);
+      
+      if (error) alert('刪除失敗');
     }
   };
 
-  const handleTogglePickupStatus = (id: string, isPickedUp: boolean) => {
-    setOrders(orders.map(order => 
-      order.id === id ? { ...order, isPickedUp } : order
-    ));
+  const handleTogglePickupStatus = async (id: string, isPickedUp: boolean) => {
+    const { error } = await supabase
+      .from('orders')
+      .update({ isPickedUp })
+      .eq('id', id);
+    
+    if (error) console.error('Update Error:', error.message);
   };
 
+  const handleClearData = async () => {
+    if (confirm('確定要清空雲端所有訂單嗎？這動作無法復原！')) {
+      const { error } = await supabase
+        .from('orders')
+        .delete()
+        .neq('id', '0'); // 刪除所有資料
+      
+      if (error) alert('清空失敗');
+    }
+  };
+
+  // --- 🖼️ UI 介面邏輯 ---
   const toggleSidebar = () => setIsSidebarOpen(!isSidebarOpen);
   const closeSidebar = () => setIsSidebarOpen(false);
 
@@ -88,7 +130,7 @@ export default function App() {
       <div className="md:hidden flex items-center justify-between bg-[#172554] text-white p-4 shrink-0 shadow-md relative z-20">
         <div className="font-bold tracking-wide flex items-center text-lg">
           <ShirtIcon className="w-5 h-5 mr-2" />
-          大船團服訂購
+          大船團服訂購系統
         </div>
         <button onClick={toggleSidebar} className="p-1 hover:bg-white/10 rounded-md transition-colors">
           {isSidebarOpen ? <X className="w-6 h-6" /> : <Menu className="w-6 h-6" />}
@@ -97,21 +139,17 @@ export default function App() {
 
       {/* Mobile Overlay */}
       {isSidebarOpen && (
-        <div 
-          className="fixed inset-0 bg-black/60 z-30 md:hidden backdrop-blur-sm transition-opacity" 
-          onClick={closeSidebar} 
-        />
+        <div className="fixed inset-0 bg-black/60 z-30 md:hidden backdrop-blur-sm" onClick={closeSidebar} />
       )}
 
       {/* Sidebar */}
-      <aside className={`fixed inset-y-0 left-0 z-40 w-[240px] bg-[#172554] text-white p-6 flex flex-col gap-8 flex-shrink-0 transform transition-transform duration-300 ease-in-out md:relative md:translate-x-0 ${
+      <aside className={`fixed inset-y-0 left-0 z-40 w-[240px] bg-[#172554] text-white p-6 flex flex-col gap-8 transform transition-transform duration-300 md:relative md:translate-x-0 ${
         isSidebarOpen ? 'translate-x-0 bottom-0 top-[60px]' : '-translate-x-full md:top-0'
       }`}>
         <div className="hidden md:flex text-[20px] font-bold border-b border-white/10 pb-4 tracking-[1px] items-center">
           <ShirtIcon className="w-6 h-6 mr-2" />
           大船團服訂購
         </div>
-        
         <nav className="flex flex-col gap-3">
           <button
             onClick={() => { setActiveTab('form'); closeSidebar(); }}
@@ -122,8 +160,8 @@ export default function App() {
             <ClipboardList className="w-4 h-4 mr-3 shrink-0" />
             填寫訂購單
           </button>
-
-          {/* 🔒 只有管理員看得到的按鈕 */}
+          
+          {/* 只有管理員才看得到的選單 */}
           {isAdmin && (
             <>
               <button
@@ -133,7 +171,7 @@ export default function App() {
                 }`}
               >
                 <LayoutDashboard className="w-4 h-4 mr-3 shrink-0" />
-                後台管理
+                雲端後台管理
               </button>
               <button
                 onClick={() => { setActiveTab('settings'); closeSidebar(); }}
@@ -148,14 +186,13 @@ export default function App() {
           )}
         </nav>
         
-        {/* 清空按鈕也同樣保護起來 */}
         {isAdmin && activeTab === 'admin' && orders.length > 0 && (
-          <div className="mt-auto md:mt-auto pt-8">
+          <div className="mt-auto pt-8">
             <button 
               onClick={handleClearData}
               className="w-full text-sm text-red-400 hover:text-red-300 font-medium py-2 rounded-md hover:bg-white/5 transition-colors border border-red-500/30 text-center"
             >
-              清空測試資料
+              清空雲端資料庫
             </button>
           </div>
         )}
@@ -169,24 +206,27 @@ export default function App() {
           </div>
         )}
         
-        {/* 只有管理員權限才能看到內容，即便有人透過 F12 切換 activeTab 也會看到空白 */}
         {isAdmin && activeTab === 'admin' && (
-          <div className="flex-1 flex flex-col transition-all animate-in fade-in slide-in-from-bottom-4">
+          <div className="flex-1 flex flex-col transition-all animate-in fade-in">
             <div className="mb-6 flex flex-col sm:flex-row justify-between sm:items-center gap-4">
               <div>
-                <h1 className="text-2xl font-semibold text-[#1e293b] mb-1">後台管理總覽</h1>
-                <p className="text-[14px] text-[#64748b]">自動整理廠商叫貨單與客製印字明細，擺脫人工統計的痛苦。</p>
+                <h1 className="text-2xl font-semibold text-[#1e293b] mb-1">雲端資料總覽</h1>
+                <p className="text-[14px] text-[#64748b]">資料與 Supabase 即時同步，換手機也能管理。</p>
               </div>
-              <div className="bg-[#eff6ff] text-[#3b82f6] font-semibold rounded px-4 py-2 text-[14px] text-center inline-block sm:w-auto self-start">
-                自動即時更新
+              <div className="bg-[#eff6ff] text-[#3b82f6] font-semibold rounded px-4 py-2 text-[14px]">
+                Realtime 已啟動
               </div>
             </div>
-            <AdminDashboard orders={orders} onDeleteOrder={handleDeleteOrder} onTogglePickupStatus={handleTogglePickupStatus} />
+            <AdminDashboard 
+              orders={orders} 
+              onDeleteOrder={handleDeleteOrder} 
+              onTogglePickupStatus={handleTogglePickupStatus} 
+            />
           </div>
         )}
 
         {isAdmin && activeTab === 'settings' && (
-          <div className="max-w-3xl mx-auto w-full transition-all animate-in fade-in slide-in-from-bottom-4">
+          <div className="max-w-3xl mx-auto w-full transition-all animate-in fade-in">
             <SettingsPanel settings={settings} onSettingsChange={setSettings} />
           </div>
         )}
