@@ -25,6 +25,10 @@ jobs:
         run: npm install
 
       - name: Build
+        # 💡 重點：在 build 之前，要把雲端的 Secret 轉成 Vite 認識的變數
+        env:
+          VITE_SUPABASE_URL: ${{ secrets.VITE_SUPABASE_URL }}
+          VITE_SUPABASE_ANON_KEY: ${{ secrets.VITE_SUPABASE_ANON_KEY }}
         run: npm run build
 
       - name: Upload artifact
