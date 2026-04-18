@@ -54,7 +54,7 @@ export const DEFAULT_SETTINGS: AppSettings = {
   // 🖼️ 圖片連結設定
   heroImageUrl: "https://i.postimg.cc/Y9Q01sQm/di-si-jie-tuan-fu-shi-yi-tu.jpg",
   sizeChartUrl: "https://i.postimg.cc/SRVpbwBk/chi-cun.png",
-  imageUrls: ["https://i.postimg.cc/4x0HTMG8/2FINAL.png"], 
+  imageUrls: ["https://i.postimg.cc/qqSDSK0t/wei-ming-ming-she-ji.png"], 
 
   // 🎁 禮包方案修正
   packageA: {
