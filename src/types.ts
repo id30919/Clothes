@@ -48,7 +48,7 @@ export const DEFAULT_SETTINGS: AppSettings = {
   basePrice: 440,
   printPrice: 60,
   studentDiscount: 100,
-  heroImageUrl: "https://i.postimg.cc/90hMJHhT/da-chuan-da-zhan-qi-gua-bu-jie-tu-ban.jpg",
+  heroImageUrl: "https://i.postimg.cc/Y9Q01sQm/di-si-jie-tuan-fu-shi-yi-tu.jpg",
   sizeChartUrl: "https://i.postimg.cc/SRVpbwBk/chi-cun.png",
   imageUrls: ["https://i.postimg.cc/4x0HTMG8/2FINAL.png"], 
   packageA: {
