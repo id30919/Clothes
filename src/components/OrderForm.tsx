@@ -26,17 +26,13 @@ export default function OrderForm({ onSubmit, settings }: OrderFormProps) {
   const [note, setNote] = useState('');
   const [submittedOrder, setSubmittedOrder] = useState<Order | null>(null);
 
-  // --- 關鍵修正：解決自動跳到最上方的邏輯 ---
   useEffect(() => {
     if (submittedOrder) {
-      // 使用 setTimeout 確保 React 已經把成功畫面渲染到 DOM 上
       const timer = setTimeout(() => {
         const successElement = document.getElementById('success-top-anchor');
         if (successElement) {
-          // 強制對焦到成功畫面的最上方，並使用平滑捲動
           successElement.scrollIntoView({ behavior: 'smooth', block: 'start' });
         } else {
-          // 備援方案
           window.scrollTo({ top: 0, behavior: 'smooth' });
         }
       }, 100);
@@ -102,7 +98,6 @@ export default function OrderForm({ onSubmit, settings }: OrderFormProps) {
                  const idx = unassigned.indexOf(gItem);
                  if(idx > -1) unassigned.splice(idx, 1);
               });
-              
               _total += settings.packageA.price;
               _breakdown.packages += settings.packageA.price;
               _applied.push(`🎁 禮包A優惠 (同Size: ${size}, 名稱: ${name || '無'})`);
@@ -119,7 +114,6 @@ export default function OrderForm({ onSubmit, settings }: OrderFormProps) {
            _total += settings.packageA.price;
            _breakdown.packages += settings.packageA.price;
            _applied.push(`🎁 禮包A優惠 (同Size: ${size})`);
-
            const allSameName = group.every(i => i.customName === group[0].customName);
            let freePrintsAllowed = (settings.packageA.requireSameName && !allSameName) ? 0 : settings.packageA.freePrints;
            let printCount = group.filter(i => i.customName).length;
@@ -135,12 +129,10 @@ export default function OrderForm({ onSubmit, settings }: OrderFormProps) {
           _total += settings.packageB.price;
           _breakdown.packages += settings.packageB.price;
           _applied.push(`🎁 禮包B優惠 (同Size: ${size})`);
-          
           let freePrintsAllowed = settings.packageB.freePrints;
           if ((settings.packageB as any).requireSameName && !group.every(i => i.customName === group[0].customName)) {
              freePrintsAllowed = 0;
           }
-          
           let printCount = group.filter(i => i.customName).length;
           let printChargeCount = Math.max(0, printCount - freePrintsAllowed);
           _total += printChargeCount * settings.printPrice;
@@ -172,7 +164,6 @@ export default function OrderForm({ onSubmit, settings }: OrderFormProps) {
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!buyerName.trim() || items.length === 0) return;
-
     const newOrder: Order = {
       id: crypto.randomUUID(),
       buyerName,
@@ -200,7 +191,6 @@ export default function OrderForm({ onSubmit, settings }: OrderFormProps) {
               <div className="text-2xl font-bold">{submittedOrder.totalPrice} 元</div>
             </div>
           </div>
-
           <div className="mb-8">
             <h3 className="text-[16px] font-bold text-[#1e293b] mb-3 text-center border-b pb-2">購買明細</h3>
             <ul className="space-y-2 max-w-md mx-auto text-[14px] text-[#475569]">
@@ -224,7 +214,6 @@ export default function OrderForm({ onSubmit, settings }: OrderFormProps) {
             </ul>
             <p className="text-center text-[13px] text-rose-500 mt-3 font-medium">如有需要刪改訂單，請聯繫挨滴本人。</p>
           </div>
-
           <div className="bg-blue-50/80 border border-blue-200 p-6 rounded-lg text-[14px] text-blue-900 mb-8 mx-auto">
             <h3 className="font-bold flex items-center justify-center mb-4 text-[16px] border-b border-blue-200/60 pb-3">
                <CreditCard className="w-5 h-5 mr-2 text-blue-600" />
@@ -243,23 +232,16 @@ export default function OrderForm({ onSubmit, settings }: OrderFormProps) {
                 <span className="bg-white px-2 py-0.5 rounded border border-blue-100 text-[#64748b] text-[12px] font-medium shrink-0 w-[42px] text-center">戶名</span>
                 <span className="font-medium text-left">許弘德 <span className="text-gray-500 text-[12px] ml-1">(不收Line Pay)</span></span>
               </p>
-              
               <div className="pt-2 border-t border-blue-200/50 mt-2">
                 <p className="text-red-500 font-semibold text-center mb-3">
                   ✅ 匯款備註欄位：請務必備註您的「大名or花名 」
                 </p>
                 <div className="flex justify-center text-center">
-                  <a 
-                    href="https://mobile.richart.tw/TSDIB_RichartWeb/RC04/RC040300?token=890B498D154495B2DA69B2D355607613" 
-                    target="_blank" 
-                    rel="noopener noreferrer" 
-                    className="inline-flex items-center text-blue-600 hover:text-blue-700 hover:bg-blue-100/50 px-4 py-2 rounded-md transition-colors font-bold border-2 border-blue-200 bg-white shadow-sm"
-                  >
+                  <a href="https://mobile.richart.tw/TSDIB_RichartWeb/RC04/RC040300?token=890B498D154495B2DA69B2D355607613" target="_blank" rel="noopener noreferrer" className="inline-flex items-center text-blue-600 hover:text-blue-700 hover:bg-blue-100/50 px-4 py-2 rounded-md transition-colors font-bold border-2 border-blue-200 bg-white shadow-sm">
                     📌 點我開啟台新 Richart 匯款連結
                   </a>
                 </div>
               </div>
-
               <div className="mt-4 pt-4 border-t border-blue-200/60 space-y-2 text-blue-900 font-semibold bg-white p-4 rounded-xl shadow-sm border border-blue-100">
                 <p className="flex items-start text-rose-600">
                   <span className="mr-2">⚠️</span> 
@@ -276,7 +258,6 @@ export default function OrderForm({ onSubmit, settings }: OrderFormProps) {
               </div>
             </div>
           </div>
-
           <div className="flex justify-center">
             <button
               onClick={() => {
@@ -318,23 +299,11 @@ export default function OrderForm({ onSubmit, settings }: OrderFormProps) {
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
               <label className="block text-[13px] font-medium text-[#64748b] mb-1">您在大船的花名？（若同名，請補上職業） <span className="text-red-500">*</span></label>
-              <input
-                type="text"
-                required
-                value={buyerName}
-                onChange={(e) => setBuyerName(e.target.value)}
-                className="w-full rounded-md border border-[#e2e8f0] px-3 py-2 text-[14px] focus:outline-none focus:ring-1 focus:ring-[#3b82f6] text-[#1e293b]"
-                placeholder="例如：小明 (工程師)"
-              />
+              <input type="text" required value={buyerName} onChange={(e) => setBuyerName(e.target.value)} className="w-full rounded-md border border-[#e2e8f0] px-3 py-2 text-[14px] focus:outline-none focus:ring-1 focus:ring-[#3b82f6] text-[#1e293b]" placeholder="例如：小明 (工程師)" />
             </div>
             <div className="flex items-center mt-2 md:mt-[22px]">
                <label className="flex items-center cursor-pointer">
-                <input 
-                  type="checkbox" 
-                  checked={isStudent}
-                  onChange={(e) => setIsStudent(e.target.checked)}
-                  className="rounded border-gray-300 text-[#3b82f6] focus:ring-[#3b82f6] w-4 h-4"
-                />
+                <input type="checkbox" checked={isStudent} onChange={(e) => setIsStudent(e.target.checked)} className="rounded border-gray-300 text-[#3b82f6] focus:ring-[#3b82f6] w-4 h-4" />
                 <span className="ml-2 text-[14px] font-medium text-[#64748b]">具備學生身分 (結帳總價折抵 {settings.studentDiscount} 元)</span>
               </label>
             </div>
@@ -344,12 +313,7 @@ export default function OrderForm({ onSubmit, settings }: OrderFormProps) {
             <div className="flex flex-wrap gap-4">
               {PICKUP_OPTIONS.map(day => (
                 <label key={day} className="flex items-center cursor-pointer">
-                  <input
-                    type="checkbox"
-                    checked={pickupDays.includes(day)}
-                    onChange={() => handlePickupToggle(day)}
-                    className="rounded border-gray-300 text-[#3b82f6] focus:ring-[#3b82f6] w-4 h-4"
-                  />
+                  <input type="checkbox" checked={pickupDays.includes(day)} onChange={() => handlePickupToggle(day)} className="rounded border-gray-300 text-[#3b82f6] focus:ring-[#3b82f6] w-4 h-4" />
                   <span className="ml-2 text-[14px] font-medium text-[#1e293b]">{day}</span>
                 </label>
               ))}
@@ -357,26 +321,23 @@ export default function OrderForm({ onSubmit, settings }: OrderFormProps) {
           </div>
         </div>
 
-        <div className="p-6">
-          {settings.heroImageUrl && (
-            <div className="mb-8 rounded-xl overflow-hidden shadow-sm border border-[#e2e8f0]">
-              <img 
-                src={settings.heroImageUrl} 
-                alt="團服主視覺" 
-                className="w-full h-auto object-cover max-h-[400px]"
-                loading="lazy"
-                referrerPolicy="no-referrer"
-              />
-            </div>
-          )}
+        {/* 🖼️ 中間圖片滿版設定 */}
+        {settings.heroImageUrl && (
+          <div className="w-full border-b border-[#e2e8f0] overflow-hidden bg-white">
+            <img 
+              src={settings.heroImageUrl} 
+              alt="團服主視覺" 
+              className="w-full h-auto block"
+              loading="lazy"
+              referrerPolicy="no-referrer"
+            />
+          </div>
+        )}
 
+        <div className="p-6">
           <div className="flex justify-between items-center mb-4">
             <h2 className="text-[14px] font-semibold text-[#1e293b]">二、訂購品項明細</h2>
-            <button 
-              type="button" 
-              onClick={() => setIsSizeModalOpen(true)}
-              className="px-3 py-1.5 bg-blue-50 text-blue-600 border border-blue-200 rounded-md text-[13px] font-medium hover:bg-blue-100 transition-colors flex items-center"
-            >
+            <button type="button" onClick={() => setIsSizeModalOpen(true)} className="px-3 py-1.5 bg-blue-50 text-blue-600 border border-blue-200 rounded-md text-[13px] font-medium hover:bg-blue-100 transition-colors flex items-center">
               <Info className="w-4 h-4 mr-1.5" />
               尺寸參考與試穿報告
             </button>
@@ -403,80 +364,44 @@ export default function OrderForm({ onSubmit, settings }: OrderFormProps) {
           <div className="space-y-4">
             {items.map((item, index) => (
               <div key={item.id} className="relative p-5 border border-[#e2e8f0] rounded-lg bg-[#f4f7f9]/50 shadow-sm">
-                <div className="absolute top-4 left-4 text-[12px] font-bold text-[#64748b]">
-                  #{index + 1}
-                </div>
+                <div className="absolute top-4 left-4 text-[12px] font-bold text-[#64748b]">#{index + 1}</div>
                 {items.length > 1 && (
-                  <button
-                    type="button"
-                    onClick={() => handleRemoveItem(item.id)}
-                    className="absolute top-4 right-4 text-[#64748b] hover:text-red-500 transition-colors"
-                  >
+                  <button type="button" onClick={() => handleRemoveItem(item.id)} className="absolute top-4 right-4 text-[#64748b] hover:text-red-500 transition-colors">
                     <Trash2 className="w-4 h-4" />
                   </button>
                 )}
-                
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4 mt-4">
                   <div>
                     <label className="block text-[13px] font-medium text-[#64748b] mb-1">款式</label>
-                    <select
-                      value={item.type}
-                      onChange={(e) => handleItemChange(item.id, 'type', e.target.value)}
-                      className="w-full rounded-md border border-[#e2e8f0] px-3 py-2 text-[14px] bg-white focus:outline-none focus:ring-1 focus:ring-[#3b82f6] text-[#1e293b]"
-                    >
+                    <select value={item.type} onChange={(e) => handleItemChange(item.id, 'type', e.target.value)} className="w-full rounded-md border border-[#e2e8f0] px-3 py-2 text-[14px] bg-white focus:outline-none focus:ring-1 focus:ring-[#3b82f6] text-[#1e293b]">
                       {CLOTHING_TYPES.map(t => <option key={t} value={t}>{t}</option>)}
                     </select>
                   </div>
                   <div>
                     <label className="block text-[13px] font-medium text-[#64748b] mb-1">顏色</label>
-                    <select
-                      value={item.color}
-                      onChange={(e) => handleItemChange(item.id, 'color', e.target.value)}
-                      className="w-full rounded-md border border-[#e2e8f0] px-3 py-2 text-[14px] bg-white focus:outline-none focus:ring-1 focus:ring-[#3b82f6] text-[#1e293b]"
-                    >
+                    <select value={item.color} onChange={(e) => handleItemChange(item.id, 'color', e.target.value)} className="w-full rounded-md border border-[#e2e8f0] px-3 py-2 text-[14px] bg-white focus:outline-none focus:ring-1 focus:ring-[#3b82f6] text-[#1e293b]">
                       {CLOTHING_COLORS.map(c => <option key={c} value={c}>{c}</option>)}
                     </select>
                   </div>
                   <div>
                     <label className="block text-[13px] font-medium text-[#64748b] mb-1">尺寸</label>
-                    <select
-                      value={item.size}
-                      onChange={(e) => handleItemChange(item.id, 'size', e.target.value)}
-                      className="w-full rounded-md border border-[#e2e8f0] px-3 py-2 text-[14px] bg-white focus:outline-none focus:ring-1 focus:ring-[#3b82f6] text-[#1e293b]"
-                    >
+                    <select value={item.size} onChange={(e) => handleItemChange(item.id, 'size', e.target.value)} className="w-full rounded-md border border-[#e2e8f0] px-3 py-2 text-[14px] bg-white focus:outline-none focus:ring-1 focus:ring-[#3b82f6] text-[#1e293b]">
                       {CLOTHING_SIZES.map(s => <option key={s} value={s}>{s}</option>)}
                     </select>
                   </div>
                   <div>
                     <label className="block text-[13px] font-medium text-[#64748b] mb-1">客製印字 <span className="opacity-70 text-[11px]">(+{settings.printPrice}元)</span></label>
-                    <input
-                      type="text"
-                      value={item.customName}
-                      onChange={(e) => handleItemChange(item.id, 'customName', e.target.value)}
-                      className="w-full rounded-md border border-[#e2e8f0] px-3 py-2 text-[14px] focus:outline-none focus:ring-1 focus:ring-[#3b82f6] text-[#1e293b]"
-                      placeholder="(中英文皆可)"
-                    />
+                    <input type="text" value={item.customName} onChange={(e) => handleItemChange(item.id, 'customName', e.target.value)} className="w-full rounded-md border border-[#e2e8f0] px-3 py-2 text-[14px] focus:outline-none focus:ring-1 focus:ring-[#3b82f6] text-[#1e293b]" placeholder="(中英文皆可)" />
                   </div>
                   <div>
                     <label className="block text-[13px] font-medium text-[#64748b] mb-1">數量</label>
-                    <input
-                      type="number"
-                      min="1"
-                      value={item.quantity}
-                      onChange={(e) => handleItemChange(item.id, 'quantity', parseInt(e.target.value) || 1)}
-                      className="w-full rounded-md border border-[#e2e8f0] px-3 py-2 text-[14px] focus:outline-none focus:ring-1 focus:ring-[#3b82f6] text-[#1e293b]"
-                    />
+                    <input type="number" min="1" value={item.quantity} onChange={(e) => handleItemChange(item.id, 'quantity', parseInt(e.target.value) || 1)} className="w-full rounded-md border border-[#e2e8f0] px-3 py-2 text-[14px] focus:outline-none focus:ring-1 focus:ring-[#3b82f6] text-[#1e293b]" />
                   </div>
                 </div>
               </div>
             ))}
           </div>
-
-          <button
-            type="button"
-            onClick={handleAddItem}
-            className="mt-4 flex items-center justify-center w-full py-2 border border-dashed border-[#64748b] rounded-lg text-[#64748b] hover:border-[#3b82f6] hover:text-[#3b82f6] transition-colors text-[14px] bg-[#fafafa]"
-          >
+          <button type="button" onClick={handleAddItem} className="mt-4 flex items-center justify-center w-full py-2 border border-dashed border-[#64748b] rounded-lg text-[#64748b] hover:border-[#3b82f6] hover:text-[#3b82f6] transition-colors text-[14px] bg-[#fafafa]">
             <Plus className="w-4 h-4 mr-2" />
             新增品項
           </button>
@@ -486,16 +411,11 @@ export default function OrderForm({ onSubmit, settings }: OrderFormProps) {
           <div className="flex-1">
              <div className="flex justify-between items-center mb-3">
                <h3 className="text-[13px] font-semibold text-[#64748b]">費用試算</h3>
-               <button 
-                 type="button" 
-                 onClick={() => setIsPackageModalOpen(true)}
-                 className="px-3 py-1.5 bg-rose-50 text-rose-600 border border-rose-200 rounded-md text-[13px] font-medium hover:bg-rose-100 transition-colors flex items-center"
-               >
+               <button type="button" onClick={() => setIsPackageModalOpen(true)} className="px-3 py-1.5 bg-rose-50 text-rose-600 border border-rose-200 rounded-md text-[13px] font-medium hover:bg-rose-100 transition-colors flex items-center">
                  <Gift className="w-4 h-4 mr-1.5" />
                  大船好康禮包
                </button>
              </div>
-             
              <ul className="text-[14px] space-y-1 text-[#1e293b]">
                <li>單件基礎商品: <span className="font-medium">{itemBreakdown.base + itemBreakdown.packages}</span> 元</li>
                <li className="flex flex-col sm:flex-row sm:justify-start gap-1 sm:gap-4">
@@ -521,60 +441,40 @@ export default function OrderForm({ onSubmit, settings }: OrderFormProps) {
 
         <div className="p-6 border-t border-[#e2e8f0] bg-white">
           <h2 className="text-[14px] font-semibold text-[#1e293b] mb-4">三、其他建議或附註</h2>
-          <textarea
-            value={note}
-            onChange={(e) => setNote(e.target.value)}
-            rows={3}
-            placeholder="若有其他想說的話或是交貨細節都可以填寫在這裡喔～"
-            className="w-full rounded-md border border-[#e2e8f0] px-3 py-2 text-[14px] focus:outline-none focus:ring-1 focus:ring-[#3b82f6] text-[#1e293b] bg-white"
-          />
+          <textarea value={note} onChange={(e) => setNote(e.target.value)} rows={3} placeholder="若有其他想說的話或是交貨細節都可以填寫在這裡喔～" className="w-full rounded-md border border-[#e2e8f0] px-3 py-2 text-[14px] focus:outline-none focus:ring-1 focus:ring-[#3b82f6] text-[#1e293b] bg-white" />
         </div>
 
         <div className="p-6 border-t border-[#e2e8f0] bg-[#fafafa]">
-           <button
-            type="submit"
-            className="w-full bg-[#3b82f6] hover:bg-blue-600 text-white font-medium py-3 px-4 rounded-lg transition-colors text-[14px] shadow-sm flex items-center justify-center"
-          >
+           <button type="submit" className="w-full bg-[#3b82f6] hover:bg-blue-600 text-white font-medium py-3 px-4 rounded-lg transition-colors text-[14px] shadow-sm flex items-center justify-center">
             確認金額與領貨日無誤，送出訂單
           </button>
         </div>
       </form>
 
+      {/* 尺寸彈窗區塊 */}
       {isSizeModalOpen && (
         <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4 backdrop-blur-sm animate-in fade-in duration-200">
           <div className="bg-white rounded-xl shadow-2xl max-w-2xl w-full max-h-[90vh] flex flex-col overflow-hidden animate-in zoom-in-95 duration-200">
             <div className="flex justify-between items-center p-4 border-b border-[#e2e8f0] bg-[#fafafa]">
               <h3 className="font-semibold text-[#1e293b] text-[16px]">尺寸參考與試穿報告</h3>
-              <button 
-                onClick={() => setIsSizeModalOpen(false)}
-                className="p-1 hover:bg-[#e2e8f0] rounded-full transition-colors text-[#64748b]"
-              >
-                <X className="w-5 h-5" />
-              </button>
+              <button onClick={() => setIsSizeModalOpen(false)} className="p-1 hover:bg-[#e2e8f0] rounded-full transition-colors text-[#64748b]"><X className="w-5 h-5" /></button>
             </div>
-            
             <div className="flex border-b border-[#e2e8f0] bg-white px-2 pt-2">
-               <button
-                 className={`px-4 py-2 text-[14px] font-medium border-b-2 transition-colors ${sizeModalTab === 'chart' ? 'border-[#3b82f6] text-[#3b82f6]' : 'border-transparent text-[#64748b] hover:text-[#1e293b]'}`}
-                 onClick={() => setSizeModalTab('chart')}
-               >
-                 尺寸表圖示
-               </button>
-               <button
-                  className={`px-4 py-2 text-[14px] font-medium border-b-2 transition-colors ${sizeModalTab === 'feedback' ? 'border-[#3b82f6] text-[#3b82f6]' : 'border-transparent text-[#64748b] hover:text-[#1e293b]'}`}
-                 onClick={() => setSizeModalTab('feedback')}
-               >
-                 大家試穿體感回報
-               </button>
+               <button className={`px-4 py-2 text-[14px] font-medium border-b-2 transition-colors ${sizeModalTab === 'chart' ? 'border-[#3b82f6] text-[#3b82f6]' : 'border-transparent text-[#64748b] hover:text-[#1e293b]'}`} onClick={() => setSizeModalTab('chart')}>尺寸表圖示</button>
+               <button className={`px-4 py-2 text-[14px] font-medium border-b-2 transition-colors ${sizeModalTab === 'feedback' ? 'border-[#3b82f6] text-[#3b82f6]' : 'border-transparent text-[#64748b] hover:text-[#1e293b]'}`} onClick={() => setSizeModalTab('feedback')}>大家試穿體感回報</button>
             </div>
-
             <div className="p-6 overflow-y-auto flex-1 bg-white">
                {sizeModalTab === 'chart' ? (
                  <div className="flex flex-col items-center">
                    {settings.sizeChartUrl ? (
-                     <img src={settings.sizeChartUrl} alt="尺寸表" className="max-w-full rounded-lg border border-[#e2e8f0]" />
+                     /* 🖼️ 放大尺寸表設定 */
+                     <img 
+                       src={settings.sizeChartUrl} 
+                       alt="尺寸表" 
+                       className="w-full h-auto rounded-lg border border-[#e2e8f0]" 
+                     />
                    ) : (
-                      <div className="text-center py-12 text-[#64748b]">
+                     <div className="text-center py-12 text-[#64748b]">
                        <p className="mb-2">📋 尚無上傳尺寸表圖片</p>
                        <p className="text-[12px]">管理員可至「系統設定」加入圖片網址</p>
                      </div>
@@ -582,6 +482,7 @@ export default function OrderForm({ onSubmit, settings }: OrderFormProps) {
                  </div>
                ) : (
                  <div className="space-y-6 text-[14px] text-[#1e293b]">
+                   {/* 💡 挨滴看這裡：下方為體感回報內容，可以直接修改 <li> 內的數字 */}
                    <div>
                      <h4 className="font-bold text-[#3b82f6] bg-blue-50 px-3 py-1.5 rounded-md inline-block mb-3">【Size M】</h4>
                      <ul className="space-y-1 ml-2 text-[#64748b]">
@@ -591,7 +492,7 @@ export default function OrderForm({ onSubmit, settings }: OrderFormProps) {
                         <li>165/72，M <span className="text-green-600 font-medium">合身</span></li>
                         <li>172/60，M <span className="text-green-600 font-medium">合身</span></li>
                      </ul>
-                  </div>
+                   </div>
                    <div>
                      <h4 className="font-bold text-[#3b82f6] bg-blue-50 px-3 py-1.5 rounded-md inline-block mb-3">【Size L】</h4>
                      <ul className="space-y-1 ml-2 text-[#64748b] grid grid-cols-1 sm:grid-cols-2 gap-x-4">
@@ -630,80 +531,38 @@ export default function OrderForm({ onSubmit, settings }: OrderFormProps) {
                         <li>178/68，XL <span className="text-green-600 font-medium">合身</span>（無袖）</li>
                         <li>171/73，XL <span className="text-blue-500 font-medium">舒適</span>（無袖）</li>
                      </ul>
-                  </div>
+                   </div>
                  </div>
                )}
             </div>
-            
             <div className="p-4 border-t border-[#e2e8f0] bg-[#fafafa] flex justify-end">
-              <button 
-                onClick={() => setIsSizeModalOpen(false)}
-                className="px-4 py-2 bg-[#1e293b] text-white rounded-lg hover:bg-[#334155] transition-colors text-[14px]"
-              >
-                關閉
-              </button>
+              <button onClick={() => setIsSizeModalOpen(false)} className="px-4 py-2 bg-[#1e293b] text-white rounded-lg hover:bg-[#334155] transition-colors text-[14px]">關閉</button>
             </div>
           </div>
-      </div>
+        </div>
       )}
 
+      {/* 優惠彈窗維持不變 [cite: 158-170] */}
       {isPackageModalOpen && (
         <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4 backdrop-blur-sm animate-in fade-in duration-200">
           <div className="bg-white rounded-xl shadow-2xl max-w-2xl w-full max-h-[90vh] flex flex-col overflow-hidden animate-in zoom-in-95 duration-200">
             <div className="flex justify-between items-center p-4 border-b border-[#e2e8f0] bg-[#fafafa]">
-              <h3 className="font-semibold text-[#1e293b] text-[16px] flex items-center">
-                <Gift className="w-5 h-5 mr-2 text-rose-500" />
-                大船好康禮包優惠表
-              </h3>
-              <button 
-                onClick={() => setIsPackageModalOpen(false)}
-                className="p-1 hover:bg-[#e2e8f0] rounded-full transition-colors text-[#64748b]"
-              >
-                <X className="w-5 h-5" />
-              </button>
+              <h3 className="font-semibold text-[#1e293b] text-[16px] flex items-center"><Gift className="w-5 h-5 mr-2 text-rose-500" />大船好康禮包優惠表</h3>
+              <button onClick={() => setIsPackageModalOpen(false)} className="p-1 hover:bg-[#e2e8f0] rounded-full transition-colors text-[#64748b]"><X className="w-5 h-5" /></button>
             </div>
-
             <div className="p-6 overflow-y-auto flex-1 bg-white">
                {settings.imageUrls.length > 0 ? (
-                <div className="grid gap-4">
-                  {settings.imageUrls.map((url, i) => (
-                    <img key={i} src={url} alt="優惠資訊" className="rounded-lg border border-[#e2e8f0] w-full object-contain" referrerPolicy="no-referrer" />
-                  ))}
-                </div>
+                <div className="grid gap-4">{settings.imageUrls.map((url, i) => <img key={i} src={url} alt="優惠資訊" className="rounded-lg border border-[#e2e8f0] w-full object-contain" referrerPolicy="no-referrer" />)}</div>
               ) : (
                 <div className="space-y-6">
-                  {settings.packageA.enabled && (
-                    <div className="bg-rose-50 border border-rose-200 p-5 rounded-lg">
-                      <h4 className="font-bold text-rose-700 text-lg mb-2">🎁 禮包 A (湊 {settings.packageA.requiredQty} 件優惠)</h4>
-                      <ul className="list-disc ml-5 text-rose-900 space-y-1 text-[14px]">
-                        <li>結帳優惠價：<span className="font-bold">{settings.packageA.price} 元</span></li>
-                        <li>包含免費客製印字：<span className="font-bold">{settings.packageA.freePrints} 件</span> <span className="text-gray-500 text-[12px]">{settings.packageA.requireSameName ? '(需同名)' : ''}</span></li>
-                      </ul>
-                    </div>
-                  )}
-                  {settings.packageB.enabled && (
-                    <div className="bg-blue-50 border border-blue-200 p-5 rounded-lg">
-                      <h4 className="font-bold text-blue-700 text-lg mb-2">🎁 禮包 B (同 Size 湊 {settings.packageB.requiredQty} 件優惠)</h4>
-                      <ul className="list-disc ml-5 text-blue-900 space-y-1 text-[14px]">
-                        <li>結帳優惠價：<span className="font-bold">{settings.packageB.price} 元</span></li>
-                        <li>包含免費客製印字：<span className="font-bold">{settings.packageB.freePrints} 件</span></li>
-                      </ul>
-                    </div>
-                  )}
-                  <p className="text-[#64748b] text-[13px] text-center mt-4">
-                    （管理員可至「系統設定」加入優惠說明圖片，將會顯示於此處）
-                  </p>
+                  {settings.packageA.enabled && (<div className="bg-rose-50 border border-rose-200 p-5 rounded-lg"><h4 className="font-bold text-rose-700 text-lg mb-2">🎁 禮包 A (湊 {settings.packageA.requiredQty} 件優惠)</h4><ul className="list-disc ml-5 text-rose-900 space-y-1 text-[14px]"><li>結帳優惠價：<span className="font-bold">{settings.packageA.price} 元</span></li><li>包含免費客製印字：<span className="font-bold">{settings.packageA.freePrints} 件</span> <span className="text-gray-500 text-[12px]">{settings.packageA.requireSameName ? '(需同名)' : ''}</span></li></ul></div>)}
+                  {settings.packageB.enabled && (<div className="bg-blue-50 border border-blue-200 p-5 rounded-lg"><h4 className="font-bold text-blue-700 text-lg mb-2">🎁 禮包 B (同 Size 湊 {settings.packageB.requiredQty} 件優惠)</h4><ul className="list-disc ml-5 text-blue-900 space-y-1 text-[14px]"><li>結帳優惠價：<span className="font-bold">{settings.packageB.price} 元</span></li><li>包含免費客製印字：<span className="font-bold">{settings.packageB.freePrints} 件</span></li></ul></div>)}
+                  <p className="text-[#64748b] text-[13px] text-center mt-4">（管理員可至「系統設定」加入優惠說明圖片，將會顯示於此處）</p>
                 </div>
               )}
             </div>
-            
             <div className="p-4 border-t border-[#e2e8f0] bg-[#fafafa] flex justify-end">
-              <button 
-                onClick={() => setIsPackageModalOpen(false)}
-                className="px-4 py-2 bg-[#1e293b] text-white rounded-lg hover:bg-[#334155] transition-colors text-[14px]"
-              >
-                關閉
-              </button>
+              <button onClick={() => setIsPackageModalOpen(false)} className="px-4 py-2 bg-[#1e293b] text-white rounded-lg hover:bg-[#334155] transition-colors text-[14px]">關閉</button>
             </div>
           </div>
         </div>

@@ -7,7 +7,6 @@ import { AppSettings, DEFAULT_SETTINGS, Order } from './types';
 import { ClipboardList, LayoutDashboard, Settings, Menu, X } from 'lucide-react';
 
 // --- ☁️ Supabase 雲端初始化 ---
-// 請確保你的 .env 檔案中有 VITE_SUPABASE_URL 與 VITE_SUPABASE_ANON_KEY
 const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
 const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
 const supabase = createClient(supabaseUrl, supabaseAnonKey);
@@ -29,7 +28,7 @@ export default function App() {
     return DEFAULT_SETTINGS;
   });
 
-  // 1. 🔒 管理員權限檢查 (透過網址暗號 ?admin=888)
+  // 1. 🔒 管理員權限檢查
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
     if (params.get('admin') === '888' || localStorage.getItem('dachuan_admin_access') === 'true') {
@@ -53,7 +52,6 @@ export default function App() {
 
     fetchOrders();
 
-    // 啟動 Realtime 監聽 - 當資料庫有任何變動，自動重新抓取
     const channel = supabase
       .channel('schema-db-changes')
       .on('postgres_changes', { event: '*', schema: 'public', table: 'orders' }, () => {
@@ -66,26 +64,19 @@ export default function App() {
     };
   }, []);
 
-  // 3. ⚙️ 設定存檔 (僅存在本機)
+  // 3. ⚙️ 設定存檔
   useEffect(() => {
     localStorage.setItem('clothing_settings', JSON.stringify(settings));
   }, [settings]);
 
-  // --- 📝 資料操作函數 ---
-
   const handleAddOrder = async (newOrder: Order) => {
-    // 💡 重要：移除 local 產生的 id，讓 Supabase 自動產生資料庫 ID，避免 400 錯誤
     const { id, ...orderDataWithoutId } = newOrder;
-
     const { error } = await supabase
       .from('orders')
       .insert([orderDataWithoutId]);
-
     if (error) {
       alert('送出失敗，請檢查網路！');
       console.error('Supabase Error:', error.message);
-    } else {
-      // 成功後不用手動 setOrders，Realtime 會幫我們更新
     }
   };
 
@@ -95,7 +86,6 @@ export default function App() {
         .from('orders')
         .delete()
         .eq('id', id);
-      
       if (error) alert('刪除失敗');
     }
   };
@@ -105,7 +95,6 @@ export default function App() {
       .from('orders')
       .update({ isPickedUp })
       .eq('id', id);
-    
     if (error) console.error('Update Error:', error.message);
   };
 
@@ -114,13 +103,11 @@ export default function App() {
       const { error } = await supabase
         .from('orders')
         .delete()
-        .neq('id', '0'); // 刪除所有資料
-      
+        .neq('id', '0');
       if (error) alert('清空失敗');
     }
   };
 
-  // --- 🖼️ UI 介面邏輯 ---
   const toggleSidebar = () => setIsSidebarOpen(!isSidebarOpen);
   const closeSidebar = () => setIsSidebarOpen(false);
 
@@ -137,12 +124,10 @@ export default function App() {
         </button>
       </div>
 
-      {/* Mobile Overlay */}
       {isSidebarOpen && (
         <div className="fixed inset-0 bg-black/60 z-30 md:hidden backdrop-blur-sm" onClick={closeSidebar} />
       )}
 
-      {/* Sidebar */}
       <aside className={`fixed inset-y-0 left-0 z-40 w-[240px] bg-[#172554] text-white p-6 flex flex-col gap-8 transform transition-transform duration-300 md:relative md:translate-x-0 ${
         isSidebarOpen ? 'translate-x-0 bottom-0 top-[60px]' : '-translate-x-full md:top-0'
       }`}>
@@ -153,31 +138,23 @@ export default function App() {
         <nav className="flex flex-col gap-3">
           <button
             onClick={() => { setActiveTab('form'); closeSidebar(); }}
-            className={`flex items-center px-4 py-3 rounded-lg text-[14px] transition-colors text-left ${
-              activeTab === 'form' ? 'bg-[#3b82f6]' : 'hover:bg-white/10'
-            }`}
+            className={`flex items-center px-4 py-3 rounded-lg text-[14px] transition-colors text-left ${activeTab === 'form' ? 'bg-[#3b82f6]' : 'hover:bg-white/10'}`}
           >
             <ClipboardList className="w-4 h-4 mr-3 shrink-0" />
             填寫訂購單
           </button>
-          
-          {/* 只有管理員才看得到的選單 */}
           {isAdmin && (
             <>
               <button
                 onClick={() => { setActiveTab('admin'); closeSidebar(); }}
-                className={`flex items-center px-4 py-3 rounded-lg text-[14px] transition-colors text-left ${
-                  activeTab === 'admin' ? 'bg-[#3b82f6]' : 'hover:bg-white/10'
-                }`}
+                className={`flex items-center px-4 py-3 rounded-lg text-[14px] transition-colors text-left ${activeTab === 'admin' ? 'bg-[#3b82f6]' : 'hover:bg-white/10'}`}
               >
                 <LayoutDashboard className="w-4 h-4 mr-3 shrink-0" />
                 雲端後台管理
               </button>
               <button
                 onClick={() => { setActiveTab('settings'); closeSidebar(); }}
-                className={`flex items-center px-4 py-3 rounded-lg text-[14px] transition-colors text-left ${
-                  activeTab === 'settings' ? 'bg-[#3b82f6]' : 'hover:bg-white/10'
-                }`}
+                className={`flex items-center px-4 py-3 rounded-lg text-[14px] transition-colors text-left ${activeTab === 'settings' ? 'bg-[#3b82f6]' : 'hover:bg-white/10'}`}
               >
                 <Settings className="w-4 h-4 mr-3 shrink-0" />
                 系統設定
@@ -185,23 +162,28 @@ export default function App() {
             </>
           )}
         </nav>
-        
         {isAdmin && activeTab === 'admin' && orders.length > 0 && (
           <div className="mt-auto pt-8">
-            <button 
-              onClick={handleClearData}
-              className="w-full text-sm text-red-400 hover:text-red-300 font-medium py-2 rounded-md hover:bg-white/5 transition-colors border border-red-500/30 text-center"
-            >
+            <button onClick={handleClearData} className="w-full text-sm text-red-400 hover:text-red-300 font-medium py-2 rounded-md hover:bg-white/5 transition-colors border border-red-500/30 text-center">
               清空雲端資料庫
             </button>
           </div>
         )}
       </aside>
 
-      {/* Main Content */}
       <main className="flex-1 p-4 md:p-8 flex flex-col gap-6 overflow-y-auto w-full relative z-10">
         {activeTab === 'form' && (
           <div className="max-w-4xl mx-auto w-full transition-all animate-in fade-in slide-in-from-bottom-4">
+            
+            {/* 🖼️ 方案二：團服設計圖響應式容器 */}
+            <div className="w-full mb-8 overflow-hidden rounded-2xl shadow-lg bg-white border border-slate-100 p-2 md:p-4">
+              <img 
+                src="https://i.postimg.cc/90hMJHhT/da-chuan-da-zhan-qi-gua-bu-jie-tu-ban.jpg" 
+                alt="大船羽球"
+                className="w-full h-auto object-contain rounded-xl"
+              />
+            </div>
+
             <OrderForm onSubmit={handleAddOrder} settings={settings} />
           </div>
         )}
@@ -217,11 +199,7 @@ export default function App() {
                 Realtime 已啟動
               </div>
             </div>
-            <AdminDashboard 
-              orders={orders} 
-              onDeleteOrder={handleDeleteOrder} 
-              onTogglePickupStatus={handleTogglePickupStatus} 
-            />
+            <AdminDashboard orders={orders} onDeleteOrder={handleDeleteOrder} onTogglePickupStatus={handleTogglePickupStatus} />
           </div>
         )}
 
@@ -237,18 +215,7 @@ export default function App() {
 
 function ShirtIcon(props: React.SVGProps<SVGSVGElement>) {
   return (
-    <svg
-      {...props}
-      xmlns="http://www.w3.org/2000/svg"
-      width="24"
-      height="24"
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="2"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-    >
+    <svg {...props} xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
       <path d="M20.38 3.46 16 2a4 4 0 0 1-8 0L3.62 3.46a2 2 0 0 0-1.34 2.23l.58 3.47a1 1 0 0 0 .99.84H6v10c0 1.1.9 2 2 2h8a2 2 0 0 0 2-2V10h2.15a1 1 0 0 0 .99-.84l.58-3.47a2 2 0 0 0-1.34-2.23z" />
     </svg>
   );
