@@ -16,11 +16,23 @@ export default function App() {
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [isAdmin, setIsAdmin] = useState(false);
   const [orders, setOrders] = useState<Order[]>([]);
+
+  // 💡 核心邏輯：初始化設定時，若本機無資料則強制抓取 types.ts 裡的 DEFAULT_SETTINGS
   const [settings, setSettings] = useState<AppSettings>(() => {
     const saved = localStorage.getItem('clothing_settings');
     if (saved) {
       try {
-        return { ...DEFAULT_SETTINGS, ...JSON.parse(saved) };
+        const parsed = JSON.parse(saved);
+        return { 
+          ...DEFAULT_SETTINGS, 
+          ...parsed,
+          // 確保圖片與文字在不同裝置都能正確同步
+          heroImageUrl: parsed.heroImageUrl || DEFAULT_SETTINGS.heroImageUrl,
+          sizeChartUrl: parsed.sizeChartUrl || DEFAULT_SETTINGS.sizeChartUrl,
+          announcementText: parsed.announcementText || DEFAULT_SETTINGS.announcementText,
+          paymentDeadline: parsed.paymentDeadline || DEFAULT_SETTINGS.paymentDeadline,
+          imageUrls: (parsed.imageUrls && parsed.imageUrls.length > 0) ? parsed.imageUrls : DEFAULT_SETTINGS.imageUrls
+        };
       } catch (e) {
         return DEFAULT_SETTINGS;
       }
@@ -68,6 +80,8 @@ export default function App() {
   useEffect(() => {
     localStorage.setItem('clothing_settings', JSON.stringify(settings));
   }, [settings]);
+
+  // --- 🛠️ 功能處理函數 (完整版) ---
 
   const handleAddOrder = async (newOrder: Order) => {
     const { id, ...orderDataWithoutId } = newOrder;
@@ -128,6 +142,7 @@ export default function App() {
         <div className="fixed inset-0 bg-black/60 z-30 md:hidden backdrop-blur-sm" onClick={closeSidebar} />
       )}
 
+      {/* Sidebar 側邊欄 */}
       <aside className={`fixed inset-y-0 left-0 z-40 w-[240px] bg-[#172554] text-white p-6 flex flex-col gap-8 transform transition-transform duration-300 md:relative md:translate-x-0 ${
         isSidebarOpen ? 'translate-x-0 bottom-0 top-[60px]' : '-translate-x-full md:top-0'
       }`}>
@@ -171,20 +186,22 @@ export default function App() {
         )}
       </aside>
 
+      {/* 主畫面內容 */}
       <main className="flex-1 p-4 md:p-8 flex flex-col gap-6 overflow-y-auto w-full relative z-10">
         {activeTab === 'form' && (
           <div className="max-w-4xl mx-auto w-full transition-all animate-in fade-in slide-in-from-bottom-4">
             
-            {/* 🖼️ 方案二：團服設計圖響應式容器 */}
-            <div className="w-full mb-8 overflow-hidden rounded-2xl shadow-lg bg-white border border-slate-100 p-2 md:p-4">
-              <img 
-                src="https://i.postimg.cc/90hMJHhT/da-chuan-da-zhan-qi-gua-bu-jie-tu-ban.jpg" 
-                alt="大船羽球"
-                className="w-full h-auto object-contain rounded-xl"
-              />
-            </div>
+            {/* 🖼️ 頂端橫幅：固定顯示「大船戰旗」掛布圖 */}
+<div className="w-full mb-8 overflow-hidden rounded-2xl shadow-lg bg-white border border-slate-100 p-0">
+  <img 
+    src="https://i.postimg.cc/90hMJHhT/da-chuan-da-zhan-qi-gua-bu-jie-tu-ban.jpg" 
+    alt="大船羽球橫幅"
+    className="w-full h-auto block"
+  />
+</div>
 
-            <OrderForm onSubmit={handleAddOrder} settings={settings} />
+{/* 下方才是真正的訂購表單，裡面會抓取你在 types.ts 設定的小熊預覽圖 */}
+<OrderForm onSubmit={handleAddOrder} settings={settings} />
           </div>
         )}
         
@@ -199,7 +216,11 @@ export default function App() {
                 Realtime 已啟動
               </div>
             </div>
-            <AdminDashboard orders={orders} onDeleteOrder={handleDeleteOrder} onTogglePickupStatus={handleTogglePickupStatus} />
+            <AdminDashboard 
+              orders={orders} 
+              onDeleteOrder={handleDeleteOrder} 
+              onTogglePickupStatus={handleTogglePickupStatus} 
+            />
           </div>
         )}
 
