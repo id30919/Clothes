@@ -19,7 +19,7 @@ export default function App() {
 
   // 1. 初始化設定邏輯
   const [settings, setSettings] = useState<AppSettings>(() => {
-    const saved = localStorage.getItem('clothing_settings');
+    const saved = localStorage.getItem('clothing_settings_v2');
     if (saved) {
       try {
         const parsed = JSON.parse(saved);
@@ -58,7 +58,7 @@ export default function App() {
   }, []);
 
   useEffect(() => {
-    localStorage.setItem('clothing_settings', JSON.stringify(settings));
+    localStorage.setItem('clothing_settings', JSON.stringify(settings_v2));
   }, [settings]);
 
   const handleAddOrder = async (newOrder: Order) => {
