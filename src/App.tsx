@@ -19,7 +19,7 @@ export default function App() {
 
   // 💡 核心邏輯：使用 v2 名稱強制重新整理所有人的手機記憶
   const [settings, setSettings] = useState<AppSettings>(() => {
-    const saved = localStorage.getItem('clothing_settings_v5');
+    const saved = localStorage.getItem('clothing_settings_V8');
     if (saved) {
       try {
         const parsed = JSON.parse(saved);
@@ -76,7 +76,7 @@ export default function App() {
 
   // 3. ⚙️ 設定存檔 (使用 v2 名稱)
   useEffect(() => {
-    localStorage.setItem('clothing_settings_v5', JSON.stringify(settings));
+    localStorage.setItem('clothing_settings_V8', JSON.stringify(settings));
   }, [settings]);
 
   // --- 🛠️ 完整後台功能處理函數 ---
