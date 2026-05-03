@@ -1,11 +1,14 @@
 import React, { useState, useMemo, useEffect } from 'react';
-import { Plus, Trash2, CheckCircle2, AlertTriangle, CreditCard, X, Info, Gift } from 'lucide-react';
+import { 
+  Plus, Trash2, CheckCircle2, AlertTriangle, CreditCard, X, Info, Gift, 
+  Shirt, Receipt, CheckCircle // 💡 補足明細與成功畫面所需圖示
+} from 'lucide-react';
 import { CLOTHING_COLORS, CLOTHING_SIZES, CLOTHING_TYPES, PICKUP_OPTIONS, Order, OrderItem, AppSettings } from '../types';
 
 interface OrderFormProps {
-  onSubmit: (order: Order) => void;
+  onSubmit: (order: Order) => Promise<void>; // 💡 改為 Promise 以等待資料庫結果
   settings: AppSettings;
-  isAdmin?: boolean; // 💡 傳入管理員權限
+  isAdmin?: boolean; 
 }
 
 export default function OrderForm({ onSubmit, settings, isAdmin }: OrderFormProps) {
@@ -15,6 +18,7 @@ export default function OrderForm({ onSubmit, settings, isAdmin }: OrderFormProp
   const [isSizeModalOpen, setIsSizeModalOpen] = useState(false);
   const [isPackageModalOpen, setIsPackageModalOpen] = useState(false);
   const [sizeModalTab, setSizeModalTab] = useState<'chart' | 'feedback'>('chart');
+  const [isSubmitting, setIsSubmitting] = useState(false); // 💡 追蹤送出狀態
   
   const [items, setItems] = useState<OrderItem[]>([{
     id: crypto.randomUUID(),
@@ -27,18 +31,10 @@ export default function OrderForm({ onSubmit, settings, isAdmin }: OrderFormProp
   const [note, setNote] = useState('');
   const [submittedOrder, setSubmittedOrder] = useState<Order | null>(null);
 
-  // 成功送出後自動捲動
+  // 成功送出後自動捲動回頂部
   useEffect(() => {
     if (submittedOrder) {
-      const timer = setTimeout(() => {
-        const successElement = document.getElementById('success-top-anchor');
-        if (successElement) {
-          successElement.scrollIntoView({ behavior: 'smooth', block: 'start' });
-        } else {
-          window.scrollTo({ top: 0, behavior: 'smooth' });
-        }
-      }, 100);
-      return () => clearTimeout(timer);
+      window.scrollTo({ top: 0, behavior: 'smooth' });
     }
   }, [submittedOrder]);
 
@@ -50,6 +46,7 @@ export default function OrderForm({ onSubmit, settings, isAdmin }: OrderFormProp
     setItems([...items, { id: crypto.randomUUID(), type: CLOTHING_TYPES[0], color: CLOTHING_COLORS[0], size: CLOTHING_SIZES[2], customName: '', quantity: 1 }]);
   };
 
+  // 費用計算邏輯[cite: 2]
   const { total, appliedPackages, itemBreakdown } = useMemo(() => {
     let _total = 0;
     let _applied: string[] = [];
@@ -69,7 +66,6 @@ export default function OrderForm({ onSubmit, settings, isAdmin }: OrderFormProp
     Object.entries(bySize).forEach(([size, sizeItems]) => {
       let unassigned = [...sizeItems];
 
-      // 🎁 禮包 A (1750) + 同名免費邏輯
       if (settings.packageA.enabled) {
         while (unassigned.length >= settings.packageA.requiredQty) {
           const group = unassigned.splice(0, settings.packageA.requiredQty);
@@ -83,7 +79,6 @@ export default function OrderForm({ onSubmit, settings, isAdmin }: OrderFormProp
         }
       }
 
-      // 🎁 禮包 B (900) + 1件免印
       if (settings.packageB.enabled) {
         while (unassigned.length >= settings.packageB.requiredQty) {
           const group = unassigned.splice(0, settings.packageB.requiredQty);
@@ -112,41 +107,96 @@ export default function OrderForm({ onSubmit, settings, isAdmin }: OrderFormProp
     return { total: _total, appliedPackages: _applied, itemBreakdown: _breakdown };
   }, [items, isStudent, settings]);
 
-  const handleSubmit = (e: React.FormEvent) => {
+  // 💡 修正後的提交邏輯：移除手動產生 ID，改為 async 等待[cite: 2]
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!isAdmin) return; // 💡 只有帶 ?admin=888 才能下單
-    const newOrder: Order = { id: crypto.randomUUID(), buyerName, isStudent, pickupDays, items, totalPrice: total, createdAt: new Date().toISOString(), note };
-    onSubmit(newOrder);
-    setSubmittedOrder(newOrder);
+    if (!isAdmin || isSubmitting) return;
+
+    setIsSubmitting(true);
+    
+    // ⚠️ 不要在這裡產生 id，讓 Supabase 的 int8 自動跳號
+    const orderData = { 
+      buyerName, 
+      isStudent, 
+      pickupDays, 
+      items, 
+      totalPrice: total, 
+      createdAt: new Date().toISOString(), 
+      note 
+    };
+
+    try {
+      await onSubmit(orderData as any); // 等待 App.tsx 的資料庫執行
+      setSubmittedOrder(orderData as any); // 成功後才切換畫面顯示明細
+    } catch (err) {
+      console.error("訂單送出失敗", err);
+      // 失敗時會留在原畫面，讓使用者看到 App.tsx 噴出的 Alert
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
+  // ✅ 成功畫面：加入衣服明細與帳號防呆[cite: 2]
   if (submittedOrder) {
     return (
-      <div id="success-top-anchor" className="flex flex-col items-center justify-center pt-8">
-        <div className="bg-white rounded-xl shadow-lg border border-[#e2e8f0] p-8 w-full max-w-2xl">
+      <div className="flex flex-col items-center justify-center pt-8 animate-in fade-in zoom-in duration-300">
+        <div className="bg-white rounded-3xl shadow-2xl border border-[#e2e8f0] p-8 w-full max-w-2xl">
           <div className="text-center mb-8">
-            <CheckCircle2 className="w-16 h-16 text-[#10b981] mx-auto mb-4" />
-            <h2 className="text-[24px] font-bold text-[#1e293b]">訂單已成功送出！</h2>
-            <div className="mt-4 bg-blue-50 text-blue-700 px-6 py-3 rounded-lg border border-blue-100 font-bold text-2xl">
-              {submittedOrder.totalPrice} 元
+            <CheckCircle className="w-16 h-16 text-[#10b981] mx-auto mb-4" />
+            <h2 className="text-[28px] font-black text-[#1e293b]">訂單已成功送出！</h2>
+            <div className="mt-4 bg-blue-50 text-blue-700 px-8 py-3 rounded-2xl border border-blue-100 font-black text-3xl inline-block">
+              NT$ {submittedOrder.totalPrice}
             </div>
           </div>
-          <div className="bg-blue-50/80 border border-blue-200 p-6 rounded-lg text-blue-900 mb-8 mx-auto">
-            <h3 className="font-bold flex items-center justify-center mb-4 text-[16px] border-b border-blue-200/60 pb-3">
-               <CreditCard className="w-5 h-5 mr-2" /> 付款通知
+
+          {/* 💡 新增：衣服訂購明細清單 */}
+          <div className="bg-slate-50 rounded-2xl p-6 mb-8 border border-slate-100">
+            <h3 className="text-slate-400 font-bold text-[11px] uppercase tracking-widest mb-4 flex items-center">
+              <Shirt size={14} className="mr-2"/> 您本次訂購的明細
             </h3>
-            <div className="space-y-3 max-w-md mx-auto text-[14px]">
-              <p>台新銀行 (812) / 28881000045799 / 許弘德</p>
-              <p className="text-red-500 font-bold">匯款備註請務必備註您的「大名or花名」</p>
-              <div className="flex justify-center pt-2">
-                <a href="https://mobile.richart.tw/TSDIB_RichartWeb/RC04/RC040300?token=890B498D154495B2DA69B2D355607613" target="_blank" rel="noopener noreferrer" className="text-blue-600 font-bold border-2 border-blue-200 bg-white px-4 py-2 rounded-md">
-                   📌 開啟台新 Richart 連結
-                </a>
-              </div>
+            <div className="space-y-3">
+              {submittedOrder.items.map((item, idx) => (
+                <div key={idx} className="flex justify-between items-center bg-white p-3 rounded-xl border border-slate-100 shadow-sm">
+                  <div>
+                    <span className="font-bold text-slate-700 text-[14px]">{item.type}</span>
+                    <div className="text-[11px] text-slate-400">{item.color} / {item.size} x {item.quantity}</div>
+                  </div>
+                  {item.customName && (
+                    <div className="text-orange-500 font-black text-[12px] bg-orange-50 px-2 py-1 rounded-lg">
+                      印：{item.customName}
+                    </div>
+                  )}
+                </div>
+              ))}
+            </div>
+            <div className="mt-4 pt-3 border-t border-slate-200 text-[12px] text-slate-400">
+              預計領貨日：{submittedOrder.pickupDays.join(', ')}
             </div>
           </div>
-          <div className="flex justify-center">
-            <button onClick={() => window.location.reload()} className="px-6 py-2.5 bg-[#f1f5f9] text-[#475569] font-medium rounded-lg hover:bg-[#e2e8f0]">返回填寫下一筆</button>
+
+          {/* 付款通知 */}
+          <div className="bg-blue-600 rounded-3xl p-6 text-white mb-8 shadow-lg">
+            <h3 className="font-bold flex items-center justify-center mb-4 text-[16px] opacity-90">
+               <Receipt className="w-5 h-5 mr-2" /> 付款資訊
+            </h3>
+            <div className="text-center space-y-2">
+              <p className="text-[12px] opacity-80">台新銀行 (812) / 許弘德</p>
+              <p className="text-2xl font-black tracking-widest border-b border-white/20 pb-2">28881000045799</p>
+              <p className="text-[11px] font-bold text-blue-100 pt-2">匯款備註請務必填寫您的「大名」</p>
+            </div>
+          </div>
+
+          {/* 💡 防呆按鈕：使用者確認後才回到首頁 */}
+          <div className="flex flex-col gap-3">
+            <a href="https://mobile.richart.tw/TSDIB_RichartWeb/RC04/RC040300?token=890B498D154495B2DA69B2D355607613" target="_blank" rel="noopener noreferrer" className="flex items-center justify-center py-3 bg-white border-2 border-blue-600 text-blue-600 font-bold rounded-2xl hover:bg-blue-50 transition-all">
+               📌 開啟台新 Richart 連結
+            </a>
+            <button 
+              onClick={() => window.location.reload()} 
+              className="w-full py-4 bg-slate-900 text-white rounded-2xl font-black text-lg shadow-xl hover:bg-black transition-all active:scale-95"
+            >
+              我已記下明細與帳號，完成結帳 🚢
+            </button>
           </div>
         </div>
       </div>
@@ -200,7 +250,7 @@ export default function OrderForm({ onSubmit, settings, isAdmin }: OrderFormProp
           </div>
 
           <div className="bg-emerald-50 border border-emerald-200 text-emerald-800 p-4 rounded-lg text-[13px] mb-4 shadow-sm">
-            <p className="font-bold underline underline-offset-4 decoration-emerald-300">不同的 款式、尺寸、顏色，或 有的印/不印名字，請點擊下方「+新增品項」：</p>
+            <p className="font-bold underline underline-offset-4 decoration-emerald-300">不同的 款式、尺寸、顏色，請點擊下方「+新增品項」：</p>
           </div>
 
           <div className="space-y-4">
@@ -269,15 +319,15 @@ export default function OrderForm({ onSubmit, settings, isAdmin }: OrderFormProp
         <div className="p-6 border-t border-[#e2e8f0] bg-[#fafafa]">
            <button 
              type="submit" 
-             disabled={!isAdmin} 
+             disabled={!isAdmin || isSubmitting} 
              className={`w-full py-4 rounded-xl font-bold text-lg shadow-sm transition-all ${isAdmin ? 'bg-blue-500 text-white hover:bg-blue-600' : 'bg-slate-400 text-white cursor-not-allowed opacity-80'}`}
            >
-            {isAdmin ? '確認金額無誤，送出訂單 🚢' : '訂購時間已到，無法下單。'}
+            {isSubmitting ? '正在啟航...' : isAdmin ? '確認金額無誤，送出訂單 🚢' : '訂購時間已到，無法下單。'}
           </button>
         </div>
       </form>
 
-      {/* 📊 尺寸彈窗與試穿數據 (回歸 400+ 行版完整內容)[cite: 1] */}
+      {/* 📊 尺寸彈窗 */}
       {isSizeModalOpen && (
         <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4 backdrop-blur-sm">
           <div className="bg-white rounded-xl shadow-2xl max-w-2xl w-full max-h-[90vh] flex flex-col overflow-hidden">
