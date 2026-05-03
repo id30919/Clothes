@@ -1,185 +1,142 @@
-import React, { useMemo, useState } from 'react';
-import { Order } from '../types';
-import { Package, Users, Shirt, Printer, Trash2, FileSpreadsheet, ArrowUpDown, ArrowUp, ArrowDown } from 'lucide-react';
+import React, { useState, useCallback, useMemo } from 'react';
+import * as XLSX from 'xlsx'; 
+import { Order, AppSettings, CLOTHING_TYPES, CLOTHING_COLORS, CLOTHING_SIZES, PICKUP_OPTIONS } from '../types';
+import { 
+  BarChart3, Users, Shirt, Receipt, Download, Trash2, Filter, 
+  GripVertical, Scissors, FileSpreadsheet, PlusCircle 
+} from 'lucide-react';
 
 interface AdminDashboardProps {
   orders: Order[];
-  onDeleteOrder?: (id: string) => void;
-  onTogglePickupStatus?: (id: string, isPickedUp: boolean) => void;
+  settings: AppSettings;
+  onDeleteOrder: (id: string) => void;
+  onAddOrder: () => void; // 💡 新增：切換下單功能的 Prop
 }
 
-export default function AdminDashboard({ orders, onDeleteOrder, onTogglePickupStatus }: AdminDashboardProps) {
-  const [sortConfig, setSortConfig] = useState<{key: 'type' | 'color' | 'size' | 'count', direction: 'asc' | 'desc'}>({key: 'type', direction: 'asc'});
-  const [pickupFilter, setPickupFilter] = useState<string>('all');
+export default function AdminDashboard({ orders, settings, onDeleteOrder, onAddOrder }: AdminDashboardProps) {
+  const [leftWidth, setLeftWidth] = useState(50);
+  const [isDragging, setIsDragging] = useState(false);
+  const [filterDay, setFilterDay] = useState<string>('all');
 
-  // 1. 廠商叫貨統計 (Type -> Color -> Size -> Quantity)
-  const aggregatedData = useMemo(() => {
-    const data: Record<string, number> = {};
-    let totalItems = 0;
+  // 🔍 左右面板獨立搜尋狀態
+  const [leftFilter, setLeftFilter] = useState({ type: 'all', color: 'all', size: 'all', hasPrint: 'all' });
+  const [rightFilter, setRightFilter] = useState({ type: 'all', color: 'all', size: 'all' });
 
-    orders.forEach(order => {
-      order.items.forEach(item => {
-        const key = `${item.type}|${item.color}|${item.size}`;
-        data[key] = (data[key] || 0) + item.quantity;
-        totalItems += item.quantity;
-      });
-    });
+  const handleMouseDown = () => setIsDragging(true);
+  const handleMouseUp = () => setIsDragging(false);
+  const handleMouseMove = useCallback((e: any) => {
+    if (!isDragging) return;
+    const clientX = e.touches ? e.touches[0].clientX : e.clientX;
+    const percentage = (clientX / window.innerWidth) * 100;
+    if (percentage > 20 && percentage < 80) setLeftWidth(percentage);
+  }, [isDragging]);
 
-    // 轉換成陣列並排序以便渲染
-    const list = Object.entries(data).map(([key, count]) => {
-      const [type, color, size] = key.split('|');
-      return { type, color, size, count };
-    });
+  const dayFilteredOrders = useMemo(() => {
+    if (filterDay === 'all') return orders;
+    return orders.filter(o => o.pickupDays.includes(filterDay));
+  }, [orders, filterDay]);
 
-    // 排序 (根據 sortConfig)
-    list.sort((a, b) => {
-       const key = sortConfig.key;
-       let comparison = 0;
-       
-       if (key === 'count') {
-         comparison = a.count - b.count;
-       } else {
-         comparison = a[key].localeCompare(b[key]);
-         
-         // 如果主要排序欄位相同，再依序比較其他欄位
-         if (comparison === 0) {
-            if (key !== 'type' && a.type !== b.type) comparison = a.type.localeCompare(b.type);
-            else if (key !== 'color' && a.color !== b.color) comparison = a.color.localeCompare(b.color);
-            else if (key !== 'size' && a.size !== b.size) comparison = a.size.localeCompare(b.size);
-         }
-       }
-       
-       return sortConfig.direction === 'asc' ? comparison : -comparison;
-    });
-
-    return { list, totalItems };
-  }, [orders, sortConfig]);
-
-  const handleSort = (key: 'type' | 'color' | 'size' | 'count') => {
-    setSortConfig(prev => ({
-      key,
-      direction: prev.key === key && prev.direction === 'asc' ? 'desc' : 'asc'
-    }));
+  const getColorBadge = (color: string) => {
+    if (color === '白色') return 'bg-white text-slate-600 border border-slate-200';
+    if (color === '海軍藍') return 'bg-[#1e3a8a] text-white border border-[#1e3a8a]';
+    return 'bg-slate-100 text-slate-600';
   };
 
-  // 取得所有有訂購的領貨日
-  const allPickupDays = useMemo(() => {
-    const days = new Set<string>();
-    orders.forEach(o => o.pickupDays?.forEach(d => days.add(d)));
-    return Array.from(days);
-  }, [orders]);
+  // 💡 核心計算：整合搜尋過濾[cite: 1]
+  const vendorSummary = useMemo(() => {
+    const summary: Record<string, { total: number; print: number; type: string; color: string; size: string }> = {};
+    dayFilteredOrders.forEach(order => {
+      order.items.forEach(item => {
+        const matchType = leftFilter.type === 'all' || item.type === leftFilter.type;
+        const matchColor = leftFilter.color === 'all' || item.color === leftFilter.color;
+        const matchSize = leftFilter.size === 'all' || item.size === leftFilter.size;
+        const isPrint = item.customName && item.customName.trim() !== "";
+        const matchPrint = leftFilter.hasPrint === 'all' || (leftFilter.hasPrint === 'yes' ? isPrint : !isPrint);
 
-  // 過濾與排序面交名單（已領取的排到最後面）
-  const pickupOrders = useMemo(() => {
-    let list = orders;
-    if (pickupFilter !== 'all') {
-      list = orders.filter(o => o.pickupDays?.includes(pickupFilter));
-    }
-    return [...list].sort((a, b) => {
-      const aPicked = a.isPickedUp ? 1 : 0;
-      const bPicked = b.isPickedUp ? 1 : 0;
-      return aPicked - bPicked;
+        if (matchType && matchColor && matchSize && matchPrint) {
+          const key = `${item.type}-${item.color}-${item.size}`;
+          if (!summary[key]) summary[key] = { total: 0, print: 0, type: item.type, color: item.color, size: item.size };
+          summary[key].total += item.quantity;
+          if (isPrint) summary[key].print += item.quantity;
+        }
+      });
     });
-  }, [orders, pickupFilter]);
+    return Object.values(summary).sort((a, b) => a.type.localeCompare(b.type));
+  }, [dayFilteredOrders, leftFilter]);
 
-  // 2. 印字明細
-  const customPrintList = useMemo(() => {
-    return orders.flatMap(order => 
-      order.items
-        .filter(item => item.customName && item.customName.trim() !== '')
-        .map(item => ({
-          buyerName: order.buyerName,
-          type: item.type,
-          color: item.color,
-          size: item.size,
-          customName: item.customName,
-          quantity: item.quantity
-        }))
-    );
-  }, [orders]);
-  
-  const totalRevenue = useMemo(() => {
-    return orders.reduce((sum, order) => sum + (order.totalPrice || 0), 0);
-  }, [orders]);
+  const totalPrintItems = useMemo(() => vendorSummary.reduce((sum, item) => sum + item.print, 0), [vendorSummary]);
 
-  if (orders.length === 0) {
-    return (
-      <div className="flex flex-col items-center justify-center flex-1 py-20 text-[#64748b]">
-        <Package className="w-16 h-16 mb-4 text-[#e2e8f0]" />
-        <h2 className="text-[20px] font-medium text-[#1e293b]">目前還沒有任何訂單</h2>
-      </div>
-    );
-  }
+  const handleExportExcel = () => {
+    const rawData = orders.flatMap(order => order.items.map(item => ({
+      '訂購人': order.buyerName, '領貨日': order.pickupDays.join(', '),
+      '款式': item.type, '顏色': item.color, '尺寸': item.size,
+      '印字': item.customName || '無', '數量': item.quantity, '應付': order.totalPrice
+    })));
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(rawData), "明細備份");
+    XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(vendorSummary.map(v => ({
+      '款式': v.type, '顏色': v.color, '尺寸': v.size, '總件數': v.total, '需印字': v.print
+    }))), "廠商統計");
+    XLSX.writeFile(wb, `大船備份_${new Date().toLocaleDateString()}.xlsx`);
+  };
 
   return (
-    <div className="flex flex-col gap-6 flex-1 min-h-0">
-      {/* 總覽數據 */}
-      <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
-        <div className="bg-white p-5 rounded-xl border border-[#e2e8f0] shadow-[0_2px_4px_rgba(0,0,0,0.02)]">
-          <div className="text-[12px] text-[#64748b] mb-2 uppercase">總訂購人數</div>
-          <div className="text-[24px] font-bold text-[#3b82f6]">{orders.length} <span className="text-[14px] font-normal text-[#64748b]">人</span></div>
-        </div>
-        <div className="bg-white p-5 rounded-xl border border-[#e2e8f0] shadow-[0_2px_4px_rgba(0,0,0,0.02)]">
-          <div className="text-[12px] text-[#64748b] mb-2 uppercase">衣物總件數</div>
-          <div className="text-[24px] font-bold text-[#3b82f6]">{aggregatedData.totalItems} <span className="text-[14px] font-normal text-[#64748b]">件</span></div>
-        </div>
-        <div className="bg-white p-5 rounded-xl border border-[#e2e8f0] shadow-[0_2px_4px_rgba(0,0,0,0.02)]">
-          <div className="text-[12px] text-[#64748b] mb-2 uppercase">印字總件數</div>
-          <div className="text-[24px] font-bold text-[#3b82f6]">
-            {customPrintList.reduce((sum, item) => sum + item.quantity, 0)} <span className="text-[14px] font-normal text-[#64748b]">件</span>
-          </div>
-        </div>
-        <div className="bg-white p-5 rounded-xl border border-[#e2e8f0] shadow-[0_2px_4px_rgba(0,0,0,0.02)]">
-          <div className="text-[12px] text-[#64748b] mb-2 uppercase">預估總金額</div>
-          <div className="text-[24px] font-bold text-[#10b981]">
-            $ {totalRevenue.toLocaleString()}
-          </div>
-        </div>
-        <div className="bg-white p-5 rounded-xl border border-[#e2e8f0] shadow-[0_2px_4px_rgba(0,0,0,0.02)]">
-          <div className="text-[12px] text-[#64748b] mb-2 uppercase">資料狀態</div>
-          <div className="text-[24px] font-bold text-[#10b981]">即時更新</div>
-        </div>
+    <div className={`space-y-6 ${isDragging ? 'cursor-col-resize' : ''}`} onMouseMove={handleMouseMove} onMouseUp={handleMouseUp} onTouchMove={handleMouseMove} onTouchEnd={handleMouseUp}>
+      
+      {/* 頂部數據卡片[cite: 1] */}
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+        <StatCard icon={<Users/>} label="訂購人數" value={`${dayFilteredOrders.length} 人`} />
+        <StatCard icon={<Shirt/>} label="總衣物件數" value={`${vendorSummary.reduce((s, i) => s + i.total, 0)} 件`} />
+        <StatCard icon={<Scissors/>} label="總印字件數" value={`${totalPrintItems} 件`} color="text-orange-600" />
+        <StatCard icon={<Filter/>} label="目前篩選" value={filterDay === 'all' ? '全部' : filterDay} color="text-blue-500" />
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-[1fr_1.2fr] gap-6 flex-1 min-h-0">
-        {/* 左側：廠商叫貨統計表 */}
-        <div className="bg-white rounded-xl border border-[#e2e8f0] flex flex-col overflow-hidden">
-          <div className="px-5 py-4 border-b border-[#e2e8f0] bg-[#fafafa] font-semibold text-[14px] flex justify-between items-center text-[#1e293b]">
-            <span className="flex items-center">
-              <Shirt className="w-4 h-4 mr-2 text-[#64748b]" />
-              廠商叫貨統計單
-            </span>
-            <span className="text-[#3b82f6] font-normal text-[13px]">單位：件</span>
+      <div className="flex flex-col lg:flex-row gap-0 h-[700px] border rounded-2xl overflow-hidden bg-slate-100 shadow-xl relative">
+        <div style={{ width: `${leftWidth}%` }} className="bg-white h-full overflow-y-auto flex flex-col border-r">
+          <div className="p-4 border-b sticky top-0 bg-white z-20 shadow-sm">
+            <h3 className="font-bold text-slate-800 flex items-center text-sm mb-3">
+              <BarChart3 size={16} className="mr-2 text-blue-500"/> 廠商叫貨統計
+            </h3>
+            {/* 🔍 搜尋列 */}
+            <div className="grid grid-cols-2 gap-2 mb-3 bg-slate-50 p-2 rounded-xl">
+              <FilterSelect value={leftFilter.type} onChange={(v)=>setLeftFilter({...leftFilter, type:v})} options={CLOTHING_TYPES} label="款式" />
+              <FilterSelect value={leftFilter.color} onChange={(v)=>setLeftFilter({...leftFilter, color:v})} options={CLOTHING_COLORS} label="顏色" />
+              <FilterSelect value={leftFilter.size} onChange={(v)=>setLeftFilter({...leftFilter, size:v})} options={CLOTHING_SIZES} label="尺寸" />
+              <FilterSelect value={leftFilter.hasPrint} onChange={(v)=>setLeftFilter({...leftFilter, hasPrint:v})} options={[{l:'全部',v:'all'},{l:'需印字',v:'yes'},{l:'不印字',v:'no'}]} label="印字" />
+            </div>
+            {/* 小卡片[cite: 1] */}
+            <div className="bg-blue-50/50 rounded-xl p-3 border border-blue-100 grid grid-cols-2 gap-2">
+              {CLOTHING_TYPES.map(type => CLOTHING_COLORS.map(color => {
+                const items = vendorSummary.filter(v => v.type === type && v.color === color);
+                const subTotal = items.reduce((s, i) => s + i.total, 0);
+                if (subTotal === 0) return null;
+                return (
+                  <div key={`${type}-${color}`} className="bg-white p-2 rounded-lg border shadow-sm">
+                    <div className="flex justify-between items-center mb-1">
+                      <span className="text-[10px] font-bold text-slate-400">{type}</span>
+                      <span className={`text-[9px] px-1 rounded font-black ${getColorBadge(color)}`}>{color}</span>
+                    </div>
+                    <div className="flex flex-wrap gap-1 mb-1">
+                      {items.map(i => <span key={i.size} className="text-[11px] font-bold text-slate-600">{i.size}:<span className="text-blue-600">{i.total}</span></span>)}
+                    </div>
+                    <div className="text-right border-t pt-1 text-[12px] font-black text-blue-700">共 {subTotal} 件</div>
+                  </div>
+                );
+              }))}
+            </div>
           </div>
-          <div className="flex-1 overflow-y-auto px-5">
-            <table className="w-full border-collapse text-[13px]">
-              <thead>
-                <tr>
-                  <th className="text-left py-3 px-2 text-[#64748b] border-b-2 border-[#e2e8f0] bg-white sticky top-0 font-normal cursor-pointer hover:bg-slate-50 transition-colors group" onClick={() => handleSort('type')}>
-                    <div className="flex items-center">款式 {sortConfig.key === 'type' ? (sortConfig.direction === 'asc' ? <ArrowUp className="w-3 h-3 ml-1" /> : <ArrowDown className="w-3 h-3 ml-1" />) : <ArrowUpDown className="w-3 h-3 ml-1 opacity-0 group-hover:opacity-50" />}</div>
-                  </th>
-                  <th className="text-left py-3 px-2 text-[#64748b] border-b-2 border-[#e2e8f0] bg-white sticky top-0 font-normal cursor-pointer hover:bg-slate-50 transition-colors group" onClick={() => handleSort('color')}>
-                    <div className="flex items-center">顏色 {sortConfig.key === 'color' ? (sortConfig.direction === 'asc' ? <ArrowUp className="w-3 h-3 ml-1" /> : <ArrowDown className="w-3 h-3 ml-1" />) : <ArrowUpDown className="w-3 h-3 ml-1 opacity-0 group-hover:opacity-50" />}</div>
-                  </th>
-                  <th className="text-left py-3 px-2 text-[#64748b] border-b-2 border-[#e2e8f0] bg-white sticky top-0 font-normal cursor-pointer hover:bg-slate-50 transition-colors group" onClick={() => handleSort('size')}>
-                    <div className="flex items-center">尺寸 {sortConfig.key === 'size' ? (sortConfig.direction === 'asc' ? <ArrowUp className="w-3 h-3 ml-1" /> : <ArrowDown className="w-3 h-3 ml-1" />) : <ArrowUpDown className="w-3 h-3 ml-1 opacity-0 group-hover:opacity-50" />}</div>
-                  </th>
-                  <th className="text-right py-3 px-2 text-[#64748b] border-b-2 border-[#e2e8f0] bg-white sticky top-0 font-normal cursor-pointer hover:bg-slate-50 transition-colors group" onClick={() => handleSort('count')}>
-                    <div className="flex items-center justify-end">數量 {sortConfig.key === 'count' ? (sortConfig.direction === 'asc' ? <ArrowUp className="w-3 h-3 ml-1" /> : <ArrowDown className="w-3 h-3 ml-1" />) : <ArrowUpDown className="w-3 h-3 ml-1 opacity-0 group-hover:opacity-50" />}</div>
-                  </th>
-                </tr>
+          <div className="p-4">
+            <table className="w-full text-[13px] text-left">
+              <thead className="text-slate-400 font-bold border-b">
+                <tr><th className="pb-2">細節清單</th><th className="pb-2 text-center">尺寸</th><th className="pb-2 text-right">總數</th><th className="pb-2 text-right text-orange-500">印</th></tr>
               </thead>
-              <tbody>
-                {aggregatedData.list.map((row, idx) => (
-                  <tr key={idx}>
-                    <td className="py-3 px-2 border-b border-[#e2e8f0] font-semibold text-[#1e293b]">{row.type}</td>
-                    <td className="py-3 px-2 border-b border-[#e2e8f0] text-[#1e293b]">{row.color}</td>
-                    <td className="py-3 px-2 border-b border-[#e2e8f0]">
-                      <span className="bg-[#eff6ff] text-[#3b82f6] font-semibold rounded px-2 py-1 text-[11px]">
-                        {row.size}
-                      </span>
-                    </td>
-                    <td className="py-3 px-2 border-b border-[#e2e8f0] font-bold text-[#1e293b] text-right">{row.count}</td>
+              <tbody className="divide-y divide-slate-50">
+                {vendorSummary.map((item, idx) => (
+                  <tr key={idx} className="hover:bg-slate-50">
+                    <td className="py-2.5 flex items-center gap-2"><span className="text-slate-500">{item.type}</span><span className={`text-[10px] px-1.5 py-0.5 rounded-md font-bold ${getColorBadge(item.color)}`}>{item.color}</span></td>
+                    <td className="py-2.5 text-center font-bold">{item.size}</td>
+                    <td className="py-2.5 text-right font-black">{item.total}</td>
+                    <td className="py-2.5 text-right font-black text-orange-500">{item.print > 0 ? item.print : '-'}</td>
                   </tr>
                 ))}
               </tbody>
@@ -187,174 +144,112 @@ export default function AdminDashboard({ orders, onDeleteOrder, onTogglePickupSt
           </div>
         </div>
 
-        {/* 右側：客製印字明細 */}
-        <div className="bg-white rounded-xl border border-[#e2e8f0] flex flex-col overflow-hidden">
-          <div className="px-5 py-4 border-b border-[#e2e8f0] bg-[#fafafa] font-semibold text-[14px] flex justify-between items-center text-[#1e293b]">
-            <span className="flex items-center">
-              <Printer className="w-4 h-4 mr-2 text-[#64748b]" />
-              印字與客製化清單
-            </span>
+        <div onMouseDown={handleMouseDown} onTouchStart={handleMouseDown} className="hidden lg:flex w-1.5 bg-slate-200 hover:bg-blue-400 cursor-col-resize items-center justify-center group"><GripVertical size={12} className="text-slate-400 group-hover:text-white" /></div>
+
+        <div style={{ width: `calc(100% - ${leftWidth}%)` }} className="bg-white h-full overflow-y-auto flex flex-col">
+          <div className="p-4 border-b sticky top-0 bg-white z-20 shadow-sm">
+            <h3 className="font-bold text-slate-800 flex items-center text-sm mb-3">
+              <Scissors size={16} className="mr-2 text-orange-500"/> 印製加工總計 (共 {totalPrintItems} 件)
+            </h3>
+            <div className="grid grid-cols-3 gap-2 mb-3 bg-orange-50/50 p-2 rounded-xl">
+              <FilterSelect value={rightFilter.type} onChange={(v)=>setRightFilter({...rightFilter, type:v})} options={CLOTHING_TYPES} label="款式" />
+              <FilterSelect value={rightFilter.color} onChange={(v)=>setRightFilter({...rightFilter, color:v})} options={CLOTHING_COLORS} label="顏色" />
+              <FilterSelect value={rightFilter.size} onChange={(v)=>setRightFilter({...rightFilter, size:v})} options={CLOTHING_SIZES} label="尺寸" />
+            </div>
+            <div className="bg-orange-50/50 rounded-xl p-3 border border-orange-100 flex flex-wrap gap-2">
+              {CLOTHING_TYPES.map(type => CLOTHING_COLORS.map(color => {
+                const printCount = vendorSummary.filter(v => v.type === type && v.color === color).reduce((s, i) => s + i.print, 0);
+                if (printCount === 0) return null;
+                return (
+                  <div key={`p-${type}-${color}`} className="bg-white px-3 py-1.5 rounded-lg border shadow-sm flex items-center gap-2">
+                     <span className={`text-[10px] px-1 rounded font-black ${getColorBadge(color)}`}>{color}</span>
+                     <span className="text-[11px] font-bold text-slate-600">{type}</span>
+                     <span className="text-[13px] font-black text-orange-600">{printCount} 件</span>
+                  </div>
+                );
+              }))}
+            </div>
           </div>
-          <div className="flex-1 overflow-y-auto px-5">
-            {customPrintList.length > 0 ? (
-              <table className="w-full border-collapse text-[13px]">
-                <thead>
-                  <tr>
-                    <th className="text-left py-3 px-2 text-[#64748b] border-b-2 border-[#e2e8f0] bg-white sticky top-0 font-normal">訂購人</th>
-                    <th className="text-left py-3 px-2 text-[#64748b] border-b-2 border-[#e2e8f0] bg-white sticky top-0 font-normal">印字內容</th>
-                    <th className="text-left py-3 px-2 text-[#64748b] border-b-2 border-[#e2e8f0] bg-white sticky top-0 font-normal">位置 (款式/顏色/尺寸)</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {customPrintList.map((item, idx) => (
-                    <tr key={idx}>
-                      <td className="py-3 px-2 border-b border-[#e2e8f0] text-[#1e293b]">{item.buyerName}</td>
-                      <td className="py-3 px-2 border-b border-[#e2e8f0]">
-                        <span className="bg-[#fffbeb] text-[#f59e0b] border border-[#fde68a] font-semibold rounded px-2 py-1 text-[11px]">
-                          {item.customName}
-                        </span>
-                        {item.quantity > 1 && <span className="ml-2 text-xs text-[#64748b]">x{item.quantity}</span>}
-                      </td>
-                      <td className="py-3 px-2 border-b border-[#e2e8f0] text-[#64748b]">
-                        {item.type} / {item.color} / {item.size}
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            ) : (
-               <div className="py-12 text-center text-[#64748b] text-[14px]">
-                目前沒有需要客製印字的項⽬。
-               </div>
-            )}
+          <div className="p-4 space-y-2">
+            {dayFilteredOrders.map(o => o.items.filter(i => {
+              const isPrint = i.customName && i.customName.trim() !== "";
+              return isPrint && (rightFilter.type === 'all' || i.type === rightFilter.type) && (rightFilter.color === 'all' || i.color === rightFilter.color) && (rightFilter.size === 'all' || i.size === rightFilter.size);
+            }).map((i, idx) => (
+              <div key={`${o.id}-${idx}`} className="p-3 border border-slate-100 rounded-xl bg-[#fafafa] flex justify-between items-center shadow-sm">
+                <div><span className="text-[10px] text-slate-400 block mb-0.5">{o.buyerName}</span><span className="font-bold text-slate-800 text-[15px]">{i.customName}</span></div>
+                <div className="flex flex-col items-end gap-1"><span className={`text-[10px] px-2 py-0.5 rounded-md font-black ${getColorBadge(i.color)}`}>{i.color}</span><span className="text-[10px] font-bold text-slate-500">{i.type} / {i.size}</span></div>
+              </div>
+            )))}
           </div>
         </div>
       </div>
-      
-      {/* 原始訂單明細 (選用) */}
-      <div className="bg-white rounded-xl border border-[#e2e8f0] flex flex-col overflow-hidden max-h-[300px]">
-        <div className="px-5 py-4 border-b border-[#e2e8f0] bg-[#fafafa] font-semibold text-[14px] text-[#1e293b] flex justify-between items-center">
-          <div className="flex items-center gap-3">
-            <span>所有原始訂單記錄</span>
-            <select
-              value={pickupFilter}
-              onChange={(e) => setPickupFilter(e.target.value)}
-              className="bg-white border border-[#e2e8f0] rounded px-2 py-1 text-[13px] text-[#64748b] focus:outline-none focus:border-[#3b82f6]"
-            >
+
+      <div className="bg-white rounded-2xl border shadow-sm overflow-hidden">
+        <div className="p-4 bg-slate-50 border-b flex justify-between items-center">
+          <div className="flex items-center gap-4">
+            <h3 className="font-bold text-slate-800 text-sm">原始紀錄 (共 {dayFilteredOrders.length} 筆)</h3>
+            <select value={filterDay} onChange={(e)=>setFilterDay(e.target.value)} className="text-xs border rounded-lg px-2 py-1 font-bold">
               <option value="all">所有領貨日</option>
-              {allPickupDays.map(day => (
-                <option key={day} value={day}>{day}</option>
-              ))}
+              {PICKUP_OPTIONS.map(d => <option key={d} value={d}>{d}</option>)}
             </select>
           </div>
-          <button 
-            onClick={() => {
-              const headers = ['訂購時間', '訂購人(花名)', '身分', '領貨日', '應收金額', '訂購品項明細', '備註', '領取狀態'];
-              const rows = pickupOrders.map(order => {
-                const itemsStr = order.items.map(item => `${item.type}(${item.color},${item.size})x${item.quantity}${item.customName ? ` 印[${item.customName}]` : ''}`).join('；');
-                const pickupStr = order.pickupDays?.join('、') || '未填寫';
-                const isStudentStr = order.isStudent ? '學生' : '一般';
-                const dateStr = new Date(order.createdAt).toLocaleString('zh-TW');
-                const statusStr = order.isPickedUp ? '已領取' : '未領取';
-                const noteStr = order.note || '';
-
-                const escapeCell = (str: string | number) => `"${String(str).replace(/"/g, '""')}"`;
-                return [escapeCell(dateStr), escapeCell(order.buyerName), escapeCell(isStudentStr), escapeCell(pickupStr), escapeCell(order.totalPrice), escapeCell(itemsStr), escapeCell(noteStr), escapeCell(statusStr)].join(',');
-              });
-              
-              const csvContent = "\uFEFF" + [headers.join(','), ...rows].join('\n');
-              const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
-              const url = URL.createObjectURL(blob);
-              const link = document.createElement("a");
-              link.href = url;
-              link.download = `大船團服訂購名單_${new Date().toLocaleDateString('zh-TW').replace(/\//g, '')}.csv`;
-              document.body.appendChild(link);
-              link.click();
-              document.body.removeChild(link);
-            }}
-            className="flex items-center px-3 py-1.5 bg-emerald-50 text-emerald-600 border border-emerald-200 rounded-md hover:bg-emerald-100 transition-colors text-[13px] font-medium"
-          >
-            <FileSpreadsheet className="w-4 h-4 mr-1.5" />
-            匯出至 Google Sheets (CSV)
-          </button>
+          <div className="flex gap-2">
+            {/* 💡 增加：管理員下單按鈕 */}
+            <button onClick={onAddOrder} className="text-xs flex items-center bg-blue-600 text-white font-bold px-3 py-1.5 rounded-lg hover:bg-blue-700 shadow-sm">
+              <PlusCircle size={14} className="mr-1.5"/> 手動補單
+            </button>
+            <button onClick={handleExportExcel} className="text-xs flex items-center bg-emerald-600 text-white font-bold px-3 py-1.5 rounded-lg hover:bg-emerald-700">
+              <FileSpreadsheet size={14} className="mr-1.5"/> 匯出 Excel
+            </button>
+          </div>
         </div>
-        <div className="flex-1 overflow-y-auto px-5">
-          <table className="w-full border-collapse text-[13px]">
-            <thead>
-              <tr>
-                <th className="text-left py-3 px-2 text-[#64748b] border-b-2 border-[#e2e8f0] bg-white sticky top-0 font-normal">時間</th>
-                <th className="text-left py-3 px-2 text-[#64748b] border-b-2 border-[#e2e8f0] bg-white sticky top-0 font-normal">訂購人 (花名)</th>
-                <th className="text-left py-3 px-2 text-[#64748b] border-b-2 border-[#e2e8f0] bg-white sticky top-0 font-normal">身分標籤</th>
-                <th className="text-left py-3 px-2 text-[#64748b] border-b-2 border-[#e2e8f0] bg-white sticky top-0 font-normal">領貨日</th>
-                <th className="text-left py-3 px-2 text-[#64748b] border-b-2 border-[#e2e8f0] bg-white sticky top-0 font-normal">應收金額</th>
-                <th className="text-left py-3 px-2 text-[#64748b] border-b-2 border-[#e2e8f0] bg-white sticky top-0 font-normal">訂購明細</th>
-                <th className="text-left py-3 px-2 text-[#64748b] border-b-2 border-[#e2e8f0] bg-white sticky top-0 font-normal">備註</th>
-                <th className="text-left py-3 px-2 text-[#64748b] border-b-2 border-[#e2e8f0] bg-white sticky top-0 font-normal">狀態</th>
-                <th className="text-right py-3 px-2 text-[#64748b] border-b-2 border-[#e2e8f0] bg-white sticky top-0 font-normal min-w-[60px]">操作</th>
-              </tr>
+        <div className="overflow-x-auto">
+          <table className="w-full min-w-[1000px] text-left text-[13px]">
+            <thead className="bg-[#fafafa] text-slate-500 font-bold border-b">
+              <tr><th className="p-4">時間</th><th className="p-4">訂購人</th><th className="p-4">應付金額</th><th className="p-4">明細</th><th className="p-4">操作</th></tr>
             </thead>
-            <tbody>
-              {pickupOrders.map(order => (
-                <tr key={order.id} className={`hover:bg-slate-50/50 transition-colors ${order.isPickedUp ? 'bg-slate-50/70 opacity-60' : ''}`}>
-                  <td className={`py-3 px-2 border-b border-[#e2e8f0] ${order.isPickedUp ? 'line-through text-slate-400' : 'text-[#64748b]'}`}>
-                    {new Date(order.createdAt).toLocaleString('zh-TW')}
+            <tbody className="divide-y divide-slate-100">
+              {dayFilteredOrders.map(order => (
+                <tr key={order.id} className="hover:bg-slate-50 transition-colors">
+                  <td className="p-4 text-slate-400">{new Date(order.createdAt).toLocaleString('zh-TW')}</td>
+                  <td className="p-4 font-bold">{order.buyerName}</td>
+                  <td className="p-4 font-black text-blue-600">${order.totalPrice}</td>
+                  <td className="p-4 text-slate-600">
+                    {order.items.map((i, idx) => (
+                      <div key={idx} className="flex items-center gap-2">
+                        {i.type}({i.size}) <span className={`text-[9px] px-1 rounded font-bold ${getColorBadge(i.color)}`}>{i.color}</span> x{i.quantity} 
+                        {i.customName && <span className="text-orange-500 font-black">[{i.customName}]</span>}
+                      </div>
+                    ))}
                   </td>
-                  <td className={`py-3 px-2 border-b border-[#e2e8f0] ${order.isPickedUp ? 'line-through text-slate-400 font-medium' : 'font-semibold text-[#1e293b]'}`}>
-                    {order.buyerName}
-                  </td>
-                  <td className={`py-3 px-2 border-b border-[#e2e8f0] text-[#64748b] ${order.isPickedUp ? 'line-through text-slate-400' : ''}`}>
-                    {order.isStudent ? <span className="bg-blue-100 text-blue-800 px-2 py-1 rounded text-xs">學生</span> : '-'}
-                  </td>
-                  <td className={`py-3 px-2 border-b border-[#e2e8f0] text-[#64748b] ${order.isPickedUp ? 'line-through text-slate-400' : ''}`}>
-                    {order.pickupDays?.length > 0 ? order.pickupDays.join(', ') : <span className="text-gray-300">未填寫</span>}
-                  </td>
-                  <td className={`py-3 px-2 border-b border-[#e2e8f0] font-semibold ${order.isPickedUp ? 'line-through text-emerald-600/50' : 'text-emerald-600'}`}>
-                    ${order.totalPrice}
-                  </td>
-                  <td className={`py-3 px-2 border-b border-[#e2e8f0] text-[#64748b] ${order.isPickedUp ? 'line-through text-slate-400' : ''}`}>
-                    <ul className="space-y-1">
-                      {order.items.map(item => (
-                        <li key={item.id} className="flex items-center gap-2">
-                          <span>{item.type} ({item.color}, {item.size})</span>
-                          <span className={`${order.isPickedUp ? 'text-slate-400' : 'font-semibold text-[#1e293b]'}`}>x{item.quantity}</span>
-                          {item.customName && (
-                            <span className="bg-[#fffbeb] text-[#f59e0b] border border-[#fde68a] rounded px-1.5 py-0.5 text-[10px]">
-                              印 {item.customName}
-                            </span>
-                          )}
-                        </li>
-                      ))}
-                    </ul>
-                  </td>
-                  <td className={`py-3 px-2 border-b border-[#e2e8f0] text-[#64748b] ${order.isPickedUp ? 'line-through text-slate-400' : ''} max-w-[150px] truncate`} title={order.note || ''}>
-                    {order.note || '-'}
-                  </td>
-                  <td className="py-3 px-2 border-b border-[#e2e8f0]">
-                    <label className="flex items-center space-x-2 cursor-pointer">
-                      <input 
-                        type="checkbox" 
-                        checked={!!order.isPickedUp} 
-                        onChange={(e) => onTogglePickupStatus?.(order.id, e.target.checked)}
-                        className="rounded border-gray-300 text-emerald-600 shadow-sm focus:border-emerald-300 focus:ring focus:ring-emerald-200 focus:ring-opacity-50 w-4 h-4 cursor-pointer" 
-                      />
-                      <span className={`text-xs ${order.isPickedUp ? 'text-emerald-600 font-medium' : 'text-gray-500'}`}>已領取</span>
-                    </label>
-                  </td>
-                  <td className="py-3 px-2 border-b border-[#e2e8f0] text-right">
-                    <button 
-                      onClick={() => onDeleteOrder?.(order.id)}
-                      className="p-1.5 text-rose-400 hover:text-rose-600 hover:bg-rose-50 rounded transition-colors"
-                      title="刪除此筆訂單"
-                    >
-                      <Trash2 className="w-4 h-4" />
-                    </button>
-                  </td>
+                  <td className="p-4"><button onClick={()=>onDeleteOrder(order.id)} className="p-2 text-slate-300 hover:text-red-500 transition-all"><Trash2 size={16}/></button></td>
                 </tr>
               ))}
             </tbody>
           </table>
         </div>
       </div>
+    </div>
+  );
+}
+
+function FilterSelect({ value, onChange, options, label }: any) {
+  return (
+    <div className="flex flex-col">
+      <span className="text-[9px] text-slate-400 font-bold ml-1 mb-0.5">{label}</span>
+      <select value={value} onChange={(e)=>onChange(e.target.value)} className="text-[11px] border border-slate-200 rounded-lg px-2 py-1 outline-none bg-white font-bold text-slate-600">
+        <option value="all">全部</option>
+        {options.map((o: any) => typeof o === 'string' ? <option key={o} value={o}>{o}</option> : <option key={o.v} value={o.v}>{o.l}</option>)}
+      </select>
+    </div>
+  );
+}
+
+function StatCard({ icon, label, value, color = "text-blue-600" }: any) {
+  return (
+    <div className="bg-white p-5 rounded-2xl border shadow-sm flex items-center gap-4">
+      <div className="p-3 bg-slate-50 rounded-xl text-slate-400">{icon}</div>
+      <div><p className="text-[10px] uppercase font-bold text-slate-400 mb-0.5">{label}</p><p className={`text-xl font-black ${color}`}>{value}</p></div>
     </div>
   );
 }
