@@ -48,7 +48,7 @@ export const DEFAULT_SETTINGS: AppSettings = {
   basePrice: 500,     // 每件 500
   printPrice: 40,     // 印字原價 40
   studentDiscount: 100,
-  heroImageUrl: "https://i.postimg.cc/Y9Q01sQm/di-si-jie-tuan-fu-shi-yi-tu.jpg",
+  heroImageUrl: "https://i.postimg.cc/B6gkzh2s/di-si-jie-tuan-fu-shi-yi-tu.jpg",
   sizeChartUrl: "https://i.postimg.cc/SRVpbwBk/chi-cun.png",
   
   // 🖼️ 這裡已經換成你最新的 500 元價目表圖了！

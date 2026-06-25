@@ -24,7 +24,14 @@ function App() {
   useEffect(() => {
     // 讀取本地設定
     const savedSettings = localStorage.getItem('clothing_settings_v5');
-    if (savedSettings) setSettings(JSON.parse(savedSettings));
+    if (savedSettings) {
+      const parsed = JSON.parse(savedSettings);
+      if (parsed.heroImageUrl === 'https://i.postimg.cc/Y9Q01sQm/di-si-jie-tuan-fu-shi-yi-tu.jpg') {
+        parsed.heroImageUrl = 'https://i.postimg.cc/B6gkzh2s/di-si-jie-tuan-fu-shi-yi-tu.jpg';
+        localStorage.setItem('clothing_settings_v5', JSON.stringify(parsed));
+      }
+      setSettings(parsed);
+    }
     
     fetchOrders();
 
