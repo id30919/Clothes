@@ -52,7 +52,7 @@ export const DEFAULT_SETTINGS: AppSettings = {
   sizeChartUrl: "https://i.postimg.cc/SRVpbwBk/chi-cun.png",
   
   // 🖼️ 這裡已經換成你最新的 500 元價目表圖了！
-  imageUrls: ["https://i.postimg.cc/3RRY5Wdg/4final.png"], 
+  imageUrls: ["https://i.postimg.cc/W3PZfVv0/4final.png"],
 
   packageA: {
     enabled: true,

@@ -363,7 +363,7 @@ export default function OrderForm({ onSubmit, settings, isAdmin }: OrderFormProp
               <button onClick={() => setIsPackageModalOpen(false)}><X size={20}/></button>
             </div>
             <div className="p-4">
-              <img src="https://i.postimg.cc/3RRY5Wdg/4final.png" alt="禮包" className="w-full rounded-lg" />
+              <img src="https://i.postimg.cc/W3PZfVv0/4final.png" alt="禮包" className="w-full rounded-lg" />
             </div>
           </div>
         </div>
